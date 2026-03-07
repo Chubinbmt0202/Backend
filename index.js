@@ -4,6 +4,8 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import pool from './config/db.js'; // Import file kết nối database
+import employeeRoutes from './routes/employeeRoutes.js'; // Import route nhân viên
+
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -16,6 +18,9 @@ app.use(express.json()); // Giúp Backend đọc được dữ liệu JSON gửi
 app.get('/', (req, res) => {
     res.send('Backend App Chấm Công đang chạy bình thường!');
 });
+
+// Các API Routes
+app.use('/api/employees', employeeRoutes);
 
 // Lắng nghe ở cổng (port) đã định
 app.listen(port, () => {
