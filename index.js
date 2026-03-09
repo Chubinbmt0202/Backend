@@ -5,6 +5,7 @@ dotenv.config();
 
 import pool from './config/db.js'; // Import file kết nối database
 import employeeRoutes from './routes/employeeRoutes.js'; // Import route nhân viên
+import authRoutes from './routes/authRoutes.js'; // Import route authentication
 
 
 const app = express();
@@ -20,6 +21,7 @@ app.get('/', (req, res) => {
 });
 
 // Các API Routes
+app.use('/api/auth', authRoutes);
 app.use('/api/employees', employeeRoutes);
 
 // Lắng nghe ở cổng (port) đã định
