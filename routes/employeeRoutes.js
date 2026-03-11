@@ -1,5 +1,5 @@
 import express from 'express';
-import { addEmployee, getEmployees } from '../controllers/employeeController.js';
+import { addEmployee, getEmployees, uploadEmployeeFace } from '../controllers/employeeController.js';
 
 const router = express.Router();
 
@@ -8,5 +8,7 @@ router.post('/', addEmployee);
 
 // Định nghĩa route GET /api/employees để lấy danh sách nhân viên
 router.get('/', getEmployees);
+
+router.post('/upload-face', uploadEmployeeFace);
 
 export default router;

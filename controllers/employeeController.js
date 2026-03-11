@@ -73,3 +73,57 @@ export const getEmployees = async (req, res) => {
         });
     }
 };
+
+// Controller API Upload ảnh khuôn mặt
+export const uploadEmployeeFace = async (req, res) => {
+  try {
+    // 1. Lấy dữ liệu từ Mobile gửi lên (từ req.body)
+    const { userId, embedding } = req.body;
+    console.log("Dữ liệu nhận được:", req.body);
+
+    // 2. Kiểm tra tính hợp lệ
+    if (!userId) {
+      return res.status(400).json({ message: "Thiếu thông tin userId" });
+    }
+    
+    // Đảm bảo embedding là một mảng và có đúng 192 con số
+    if (!embedding || !Array.isArray(embedding) || embedding.length !== 192) {
+      return res.status(400).json({ message: "Dữ liệu khuôn mặt không hợp lệ (Phải là mảng 192 số)" });
+    }
+
+    // 3. Lưu vào Database (PostgreSQL)
+    // Chuyển mảng thành chuỗi JSON để lưu vào cột JSONB
+    const embeddingJSON = JSON.stringify(embedding); 
+    
+    // SỬA LẠI: Tên cột phải là 'face_mesh_data' theo đúng bảng users
+    const updateQuery = `
+      UPDATE users 
+      SET face_mesh_data = $1,
+          is_face_updated = true
+      WHERE id = $2 
+      RETURNING *;
+    `;
+    
+    // Giả định bạn đang dùng thư viện 'pg' (Pool)
+    const result = await pool.query(updateQuery, [embeddingJSON, userId]);
+    
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: "Không tìm thấy người dùng" });
+    }
+
+    // 4. Trả về kết quả cho Mobile
+    return res.status(200).json({ 
+      success: true,
+      message: "Đã lưu dữ liệu khuôn mặt thành công!",
+      // Trả về thông tin user vừa update (có thể bỏ dòng dưới nếu không cần thiết)
+      user: {
+        id: result.rows[0].id,
+        is_face_updated: result.rows[0].is_face_updated
+      }
+    });
+
+  } catch (error) {
+    console.error("Lỗi khi lưu khuôn mặt:", error);
+    return res.status(500).json({ message: "Lỗi server nội bộ" });
+  }
+};
