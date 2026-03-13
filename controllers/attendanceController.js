@@ -100,3 +100,55 @@ export const getAllAttendance = async (req, res) => {
         });
     }
 };
+
+/**
+ * Controller API Lấy lịch sử chấm công của 1 nhân viên
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ */
+export const getEmployeeAttendanceHistory = async (req, res) => {
+    try {
+        const { userId } = req.params;
+
+        // Kiểm tra userId hợp lệ
+        if (!userId || isNaN(userId)) {
+            return res.status(400).json({
+                success: false,
+                message: 'ID người dùng không hợp lệ.'
+            });
+        }
+
+        const query = `
+            SELECT 
+                log_date,
+                TO_CHAR(log_date, 'TMDay') AS day_of_week,
+                check_in_time,
+                check_out_time,
+                status
+            FROM attendance_logs
+            WHERE user_id = $1
+            ORDER BY log_date DESC
+        `;
+
+        const result = await pool.query(query, [userId]);
+
+        const formattedData = result.rows.map(row => ({
+            ...row,
+            // log_date: row.log_date.toISOString().split('T')[0] // Đã có log_date từ query
+        }));
+
+        res.status(200).json({
+            success: true,
+            message: 'Lấy lịch sử chấm công thành công.',
+            total: result.rowCount,
+            data: formattedData
+        });
+
+    } catch (error) {
+        console.error('Lỗi khi lấy lịch sử chấm công nhân viên:', error.message);
+        res.status(500).json({
+            success: false,
+            message: 'Lỗi server, vui lòng thử lại sau.'
+        });
+    }
+};
