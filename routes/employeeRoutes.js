@@ -1,5 +1,13 @@
 import express from 'express';
-import { addEmployee, getEmployees, updateEmployee, deleteEmployee, uploadEmployeeFace, getEmployeeByID } from '../controllers/employeeController.js';
+import { 
+    addEmployee, 
+    getEmployees, 
+    getEmployeeByID, 
+    updateEmployee, 
+    deleteEmployee, 
+    uploadEmployeeFace,
+    requestFaceUpdate
+} from '../controllers/employeeController.js';
 
 const router = express.Router();
 
@@ -18,6 +26,10 @@ router.get('/getAll', getEmployees);
 // lấy 1 nhân viên
 router.get('/getByID/:id', getEmployeeByID);
 
+// API Cho Mobile: Upload khuôn mặt
 router.post('/upload-face', uploadEmployeeFace);
+
+// API Yêu cầu cập nhật khuôn mặt
+router.put('/request-face-update/:id', requestFaceUpdate);
 
 export default router;

@@ -292,5 +292,49 @@ export const uploadEmployeeFace = async (req, res) => {
     }
 };
 
+// Controller API Yêu cầu cập nhật lại khuôn mặt
+export const requestFaceUpdate = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        if (!id || isNaN(id)) {
+            return res.status(400).json({
+                success: false,
+                message: 'ID nhân viên không hợp lệ.'
+            });
+        }
+
+        const updateQuery = `
+            UPDATE users 
+            SET face_mesh_data = NULL,
+                is_face_updated = false
+            WHERE id = $1 
+            RETURNING id, username, full_name, is_face_updated;
+        `;
+
+        const result = await pool.query(updateQuery, [id]);
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Không tìm thấy nhân viên."
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Yêu cầu cập nhật khuôn mặt đã được ghi nhận. Dữ liệu cũ đã bị xoá.",
+            data: result.rows[0]
+        });
+
+    } catch (error) {
+        console.error("Lỗi khi yêu cầu cập nhật khuôn mặt:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Lỗi server nội bộ"
+        });
+    }
+};
+
 
 
