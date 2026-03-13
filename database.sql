@@ -34,3 +34,14 @@ CREATE TABLE attendance_logs (
     status VARCHAR(20) CHECK (status IN ('present', 'late', 'half_day')) DEFAULT 'present',
     UNIQUE(user_id, log_date) -- Đảm bảo 1 nhân viên chỉ có 1 bản ghi mỗi ngày
 );
+
+-- Dữ liệu mẫu
+INSERT INTO users (username, password_hash, full_name, role) VALUES
+('trunganh', '$2b$10$xyz...', 'Nguyễn Trung Anh', 'admin'),
+('nhanvien1', '$2b$10$abc...', 'Trần Văn A', 'employee'),
+('nhanvien2', '$2b$10$def...', 'Lê Thị B', 'employee');
+
+INSERT INTO attendance_logs (user_id, log_date, check_in_time, check_out_time, status) VALUES
+(1, '2026-03-12', '2026-03-12 08:00:00', '2026-03-12 17:00:00', 'present'),
+(2, '2026-03-12', '2026-03-12 08:15:00', '2026-03-12 17:05:00', 'present'),
+(3, '2026-03-12', '2026-03-12 08:30:00', NULL, 'late');

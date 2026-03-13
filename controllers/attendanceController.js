@@ -60,3 +60,43 @@ export const getAttendanceStatus = async (req, res) => {
         });
     }
 };
+
+/**
+ * Controller API Lấy danh sách chấm công của tất cả nhân viên trong ngày
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ */
+export const getAllAttendance = async (req, res) => {
+    try {
+        const query = `
+            SELECT 
+                u.id AS employee_id,
+                u.full_name,
+                u.username,
+                al.log_date,
+                al.check_in_time,
+                al.check_out_time,
+                al.status
+            FROM users u
+            LEFT JOIN attendance_logs al ON u.id = al.user_id
+            WHERE u.role = 'employee'
+            ORDER BY al.log_date DESC NULLS LAST, u.id ASC
+        `;
+
+        const result = await pool.query(query);
+
+        res.status(200).json({
+            success: true,
+            message: 'Lấy tất cả danh sách chấm công thành công.',
+            total: result.rowCount,
+            data: result.rows
+        });
+
+    } catch (error) {
+        console.error('Lỗi khi lấy danh sách chấm công tổng hợp:', error.message);
+        res.status(500).json({
+            success: false,
+            message: 'Lỗi server, vui lòng thử lại sau.'
+        });
+    }
+};
