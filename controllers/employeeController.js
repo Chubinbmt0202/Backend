@@ -1,5 +1,6 @@
 import pool from '../config/db.js';
 import bcrypt from 'bcrypt';
+import { findBestMatch } from '../utils/faceUtils.js';
 
 // Controller API Thêm nhân viên mới (Vào bảng users)
 export const addEmployee = async (req, res) => {
@@ -241,54 +242,63 @@ export const deleteEmployee = async (req, res) => {
 // Controller API Upload ảnh khuôn mặt
 export const uploadEmployeeFace = async (req, res) => {
     try {
-        // 1. Lấy dữ liệu từ Mobile gửi lên (từ req.body)
+        // 1. Lấy dữ liệu từ Mobile gửi lên
+        // Lưu ý: Client (React Native) phải gửi body dạng { userId: ..., embeddings: [...] }
         const { userId, embedding } = req.body;
-        console.log("Dữ liệu nhận được:", req.body);
 
-        // 2. Kiểm tra tính hợp lệ
+        console.log(`Nhận yêu cầu cập nhật khuôn mặt cho User ID: ${userId}`);
+
+        // 2. Kiểm tra tính hợp lệ cơ bản
         if (!userId) {
-            return res.status(400).json({ message: "Thiếu thông tin userId" });
+            return res.status(400).json({ success: false, message: "Thiếu thông tin userId" });
         }
 
-        // Đảm bảo embedding là một mảng và có đúng 192 con số
-        if (!embedding || !Array.isArray(embedding) || embedding.length !== 192) {
-            return res.status(400).json({ message: "Dữ liệu khuôn mặt không hợp lệ (Phải là mảng 192 số)" });
+        if (!embedding || !Array.isArray(embedding) || embedding.length !== 3) {
+            return res.status(400).json({
+                success: false,
+                message: "Dữ liệu khuôn mặt không hợp lệ (Bắt buộc phải có đúng 3 góc ảnh)"
+            });
         }
 
-        // 3. Lưu vào Database (PostgreSQL)
-        // Chuyển mảng thành chuỗi JSON để lưu vào cột JSONB
+        // 3. Kiểm tra chi tiết: Đảm bảo cả 3 mảng con đều là mảng 128 số của MobileFaceNet
+        for (let i = 0; i < embedding.length; i++) {
+            if (!Array.isArray(embedding[i]) || embedding[i].length !== 192) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Vector ở vị trí thứ ${i + 1} bị lỗi. Yêu cầu mảng 192 số, nhưng nhận được ${embedding[i]?.length || 0} số.`
+                });
+            }
+        }
+
+        // 4. Lưu vào Database (PostgreSQL)
+        // PostgreSQL cột JSONB yêu cầu truyền vào một chuỗi JSON
         const embeddingJSON = JSON.stringify(embedding);
 
-        // SỬA LẠI: Tên cột phải là 'face_mesh_data' theo đúng bảng users
         const updateQuery = `
-      UPDATE users 
-      SET face_mesh_data = $1,
-          is_face_updated = true
-      WHERE id = $2 
-      RETURNING *;
-    `;
+            UPDATE users 
+            SET face_mesh_data = $1,
+                is_face_updated = true
+            WHERE id = $2 
+            RETURNING id, username, full_name, is_face_updated;
+        `;
 
-        // Giả định bạn đang dùng thư viện 'pg' (Pool)
+        // Chạy query (Sử dụng pool từ db.js của bạn)
         const result = await pool.query(updateQuery, [embeddingJSON, userId]);
 
         if (result.rowCount === 0) {
-            return res.status(404).json({ message: "Không tìm thấy người dùng" });
+            return res.status(404).json({ success: false, message: "Không tìm thấy người dùng trong hệ thống" });
         }
 
-        // 4. Trả về kết quả cho Mobile
+        // 5. Trả về kết quả thành công cho Mobile
         return res.status(200).json({
             success: true,
-            message: "Đã lưu dữ liệu khuôn mặt thành công!",
-            // Trả về thông tin user vừa update (có thể bỏ dòng dưới nếu không cần thiết)
-            user: {
-                id: result.rows[0].id,
-                is_face_updated: result.rows[0].is_face_updated
-            }
+            message: "Đã đăng ký 3 góc khuôn mặt thành công!",
+            user: result.rows[0]
         });
 
     } catch (error) {
         console.error("Lỗi khi lưu khuôn mặt:", error);
-        return res.status(500).json({ message: "Lỗi server nội bộ" });
+        return res.status(500).json({ success: false, message: "Lỗi server nội bộ" });
     }
 };
 
@@ -329,6 +339,78 @@ export const requestFaceUpdate = async (req, res) => {
 
     } catch (error) {
         console.error("Lỗi khi yêu cầu cập nhật khuôn mặt:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Lỗi server nội bộ"
+        });
+    }
+};
+
+/**
+ * Controller API Nhận diện khuôn mặt (Identify)
+ * Tìm xem khuôn mặt này là của nhân viên nào trong hệ thống
+ */
+export const recognizeEmployeeFace = async (req, res) => {
+    try {
+        const { userId, embedding } = req.body;
+        console.log(`Đang xác thực khuôn mặt cho User ID: ${userId}`);
+
+        // SỬA LỖI: Yêu cầu mảng 128 số (MobileFaceNet)
+        if (!embedding || !Array.isArray(embedding) || embedding.length !== 192) {
+            return res.status(400).json({
+                success: false,
+                message: "Dữ liệu khuôn mặt không hợp lệ (Yêu cầu mảng 192 số)."
+            });
+        }
+
+        // 1. Lấy thông tin nhân viên theo userId
+        const query = `SELECT id, username, full_name, role, face_mesh_data FROM users WHERE id = $1 AND is_face_updated = true`;
+        const result = await pool.query(query, [userId]);
+
+        // Nếu không tìm thấy dòng nào
+        if (result.rowCount === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Không tìm thấy nhân viên hoặc nhân viên này chưa đăng ký khuôn mặt."
+            });
+        }
+
+        // 2. Lấy dữ liệu của user duy nhất vừa query ra
+        const user = result.rows[0];
+
+        // Đảm bảo parse mảng JSON nếu Database trả về kiểu chuỗi String
+        const storedEmbeddings = typeof user.face_mesh_data === 'string'
+            ? JSON.parse(user.face_mesh_data)
+            : user.face_mesh_data;
+
+        // 3. Tiến hành so sánh ảnh camera gửi lên với 3 góc mặt đã lưu
+        const match = findBestMatch(embedding, storedEmbeddings);
+        const minSimilarity = 80; // Ngưỡng nhận diện (80%)
+
+        // 4. Kiểm tra kết quả và trả về
+        if (match.bestSimilarity >= minSimilarity) {
+            return res.status(200).json({
+                success: true,
+                message: `Xác thực thành công. Độ tương đồng: ${match.bestSimilarity.toFixed(2)}%`,
+                data: {
+                    id: user.id,
+                    username: user.username,
+                    full_name: user.full_name,
+                    role: user.role,
+                    similarity: match.bestSimilarity.toFixed(2) + '%',
+                    distance: match.bestDistance.toFixed(4)
+                }
+            });
+        } else {
+            return res.status(401).json({ // Dùng mã 401 Unauthorized khi sai khuôn mặt
+                success: false,
+                message: "Khuôn mặt không khớp. Vui lòng thử lại!",
+                bestSimilarity: match.bestSimilarity.toFixed(2) + '%'
+            });
+        }
+
+    } catch (error) {
+        console.error("Lỗi khi xác thực khuôn mặt:", error);
         return res.status(500).json({
             success: false,
             message: "Lỗi server nội bộ"

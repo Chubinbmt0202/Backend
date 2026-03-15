@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import { findBestMatch } from '../utils/faceUtils.js';
 
 /**
  * Controller API Lấy trạng thái chấm công của nhân viên trong ngày
@@ -101,6 +102,81 @@ export const getAllAttendance = async (req, res) => {
     }
 };
 
+// euclideanDistance removed as it's now in faceUtils.js
+
+/**
+ * Controller API Xác thực khuôn mặt để chấm công
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ */
+export const verifyAttendanceFace = async (req, res) => {
+    try {
+        const { userId, embedding } = req.body;
+
+        if (!userId || !embedding) {
+            return res.status(400).json({
+                success: false,
+                message: 'Thiếu userId hoặc dữ liệu khuôn mặt (embedding).'
+            });
+        }
+
+        // 1. Lấy dữ liệu khuôn mặt đã lưu trong DB
+        const userQuery = `SELECT face_mesh_data, is_face_updated FROM users WHERE id = $1`;
+        const userResult = await pool.query(userQuery, [userId]);
+
+        if (userResult.rowCount === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Không tìm thấy người dùng.'
+            });
+        }
+
+        const storedData = userResult.rows[0];
+
+        if (!storedData.is_face_updated || !storedData.face_mesh_data) {
+            return res.status(400).json({
+                success: false,
+                message: 'Người dùng này chưa cập nhật dữ liệu khuôn mặt.'
+            });
+        }
+
+        // 2. So sánh embedding gửi lên với 3 góc đã lưu
+        const match = findBestMatch(embedding, storedData.face_mesh_data);
+        
+        const similarity = match.bestSimilarity;
+        const distance = match.bestDistance;
+        
+        // Ngưỡng yêu cầu từ người dùng: > 80%
+        const minSimilarity = 80; 
+        const isMatch = similarity >= minSimilarity;
+
+        if (isMatch) {
+            return res.status(200).json({
+                success: true,
+                message: 'Xác thực khuôn mặt thành công.',
+                similarity: similarity.toFixed(2) + '%',
+                distance: distance.toFixed(4),
+                isMatch: true
+            });
+        } else {
+            return res.status(200).json({
+                success: false,
+                message: `Xác thực khuôn mặt thất bại. Độ tương đồng (${similarity.toFixed(2)}%) thấp hơn yêu cầu (${minSimilarity}%).`,
+                similarity: similarity.toFixed(2) + '%',
+                distance: distance.toFixed(4),
+                isMatch: false
+            });
+        }
+
+    } catch (error) {
+        console.error('Lỗi khi xác thực khuôn mặt chấm công:', error.message);
+        res.status(500).json({
+            success: false,
+            message: 'Lỗi server, vui lòng thử lại sau.'
+        });
+    }
+};
+
 /**
  * Controller API Lấy lịch sử chấm công của 1 nhân viên
  * @param {Object} req - Request object
@@ -134,7 +210,7 @@ export const getEmployeeAttendanceHistory = async (req, res) => {
 
         const formattedData = result.rows.map(row => ({
             ...row,
-            // log_date: row.log_date.toISOString().split('T')[0] // Đã có log_date từ query
+            // log_date: row.log_date.toISOString().split('T')[0] 
         }));
 
         res.status(200).json({

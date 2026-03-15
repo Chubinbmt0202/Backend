@@ -1,7 +1,15 @@
 import express from 'express';
-import { getAttendanceStatus, getAllAttendance, getEmployeeAttendanceHistory } from '../controllers/attendanceController.js';
+import { 
+    getAttendanceStatus, 
+    getAllAttendance, 
+    getEmployeeAttendanceHistory,
+    verifyAttendanceFace
+} from '../controllers/attendanceController.js';
 
 const router = express.Router();
+
+// POST /api/attendance/verify - Xác thực khuôn mặt chấm công
+router.post('/verify', verifyAttendanceFace);
 
 // GET /api/attendance/list/daily?date=YYYY-MM-DD - Lấy danh sách chấm công của tất cả NV
 router.get('/list/daily', getAllAttendance);

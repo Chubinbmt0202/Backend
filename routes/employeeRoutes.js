@@ -6,7 +6,8 @@ import {
     updateEmployee, 
     deleteEmployee, 
     uploadEmployeeFace,
-    requestFaceUpdate
+    requestFaceUpdate,
+    recognizeEmployeeFace
 } from '../controllers/employeeController.js';
 
 const router = express.Router();
@@ -31,5 +32,8 @@ router.post('/upload-face', uploadEmployeeFace);
 
 // API Yêu cầu cập nhật khuôn mặt
 router.put('/request-face-update/:id', requestFaceUpdate);
+
+// API Cho Mobile: Nhận diện khuôn mặt (Identify)
+router.post('/recognize', recognizeEmployeeFace);
 
 export default router;
