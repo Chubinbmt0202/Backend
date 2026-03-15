@@ -7,66 +7,44 @@ import {
 } from '../controllers/attendanceController.js';
 
 import pool from '../config/db.js';
-import path from 'path';
-import { fileURLToPath } from 'url';
 
-// 1. Dùng createRequire để hack require của Node
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-
-// =========================================================================
-// 2. MAGIC TRICK: HACK REQUIRE ĐỂ ĐÁNH LỪA FACE-API
-// =========================================================================
-const Module = require('module');
-const originalRequire = Module.prototype.require;
-Module.prototype.require = function(id) {
-    if (id === '@tensorflow/tfjs-node') {
-        // Khi face-api đòi bản Node (C++), ta trả về bản thuần JS (CPU)!
-        return require('@tensorflow/tfjs');
-    }
-    return originalRequire.apply(this, arguments);
-};
-// =========================================================================
-
-// 3. Bây giờ load face-api mặc định, nó sẽ ăn "cú lừa" bên trên và không bị crash
-const faceapi = require('@vladmandic/face-api');
-const canvas = require('canvas');
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// 4. Monkey Patch môi trường
-const { Canvas, Image, ImageData, loadImage } = canvas;
-faceapi.env.monkeyPatch({ Canvas, Image, ImageData });
 const router = express.Router();
 
-let isAILoaded = false;
+// ==========================================
+// CẤU HÌNH MICROSERVICE
+// ==========================================
+// Đảm bảo IP này trùng với IP mà server Python đang chạy (hoặc dùng localhost/127.0.0.1 nếu chạy cùng máy)
+const PYTHON_AI_URL = 'http://192.168.2.29:8000/api/extract';
+const PYTHON_HEALTH_URL = 'http://192.168.2.29:8000/api/health';
+
+// Hàm tính khoảng cách giữa 2 vector khuôn mặt (Euclidean Distance)
+const euclideanDistance = (arr1, arr2) => {
+    return Math.sqrt(arr1.reduce((acc, val, i) => acc + Math.pow(val - arr2[i], 2), 0));
+};
 
 // ==========================================
-// ĐƯA PHẦN LOAD MODEL RA NGOÀI ROUTE (CHỈ CHẠY 1 LẦN)
+// KIỂM TRA KẾT NỐI MICROSERVICE KHI KHỞI ĐỘNG
 // ==========================================
-const initFaceAPI = async () => {
+const checkMicroserviceConnection = async () => {
+    console.log("⏳ Đang kiểm tra kết nối tới Microservice Python...");
     try {
-        console.log("⏳ Đang khởi tạo AI Model vào bộ nhớ (Chỉ chạy 1 lần)...");
-        await faceapi.tf.setBackend('cpu');
-        await faceapi.tf.ready();
-        const modelPath = path.join(__dirname, '../node_modules/@vladmandic/face-api/model');
-        
-        await Promise.all([
-            faceapi.nets.ssdMobilenetv1.loadFromDisk(modelPath),
-            faceapi.nets.faceLandmark68Net.loadFromDisk(modelPath),
-            faceapi.nets.faceRecognitionNet.loadFromDisk(modelPath)
-        ]);
-        isAILoaded = true;
-        console.log("✅ Load Model thành công! Server đã sẵn sàng quét khuôn mặt.");
+        const response = await fetch(PYTHON_HEALTH_URL);
+        if (response.ok) {
+            console.log("✅ Tín hiệu XANH: Đã kết nối thành công với Microservice AI!");
+        } else {
+            console.log(`⚠️ Tín hiệu VÀNG: Kết nối được nhưng Python trả về mã lỗi ${response.status}`);
+        }
     } catch (error) {
-        console.error("❌ Lỗi khởi tạo AI:", error);
+        console.error("❌ Tín hiệu ĐỎ: Không thể kết nối tới Microservice Python!");
+        console.error("👉 Gợi ý: Hãy chắc chắn bạn đã chạy lệnh 'uvicorn main:app --port 8000' bên Terminal của Python nhé.");
     }
 };
 
-// Gọi hàm ngay khi file route này được import
-initFaceAPI();
-
+// Kích hoạt hàm kiểm tra ngay lập tức
+checkMicroserviceConnection();
+// ==========================================
+// CÁC ROUTE CHẤM CÔNG CƠ BẢN
+// ==========================================
 // POST /api/attendance/verify - Xác thực khuôn mặt chấm công
 router.post('/verify', verifyAttendanceFace);
 
@@ -79,72 +57,57 @@ router.get('/history/:userId', getEmployeeAttendanceHistory);
 // GET /api/attendance/:userId?date=YYYY-MM-DD - Lấy trạng thái chấm công của 1 NV
 router.get('/:userId', getAttendanceStatus);
 
+// =========================================================================
+// API 1: ĐĂNG KÝ KHUÔN MẶT (GỌI SANG PYTHON)
+// =========================================================================
 router.post('/testRegister', async (req, res) => {
+    // Dùng biến Date.now() để đo thời gian chuẩn xác nhất thay vì console.time
+    const startTotalTime = Date.now();
+
     try {
         const { urls, userId = 1 } = req.body;
-        console.log("data", req.body)
-
-        if (!isAILoaded) {
-            return res.status(503).json({ success: false, message: "Server AI đang khởi động, vui lòng đợi vài giây rồi thử lại!" });
-        }
 
         if (!urls || !Array.isArray(urls) || urls.length !== 3) {
-            return res.status(400).json({
-                success: false,
-                message: 'Vui lòng cung cấp đúng 3 link ảnh trong mảng "urls".'
-            });
-        }
-
-        console.log("Đang khởi tạo TensorFlow qua cú lừa (CPU Backend)...");
-        
-        // Gọi tf từ faceapi (vì ta đã lừa nó)
-        await faceapi.tf.setBackend('cpu');
-        await faceapi.tf.ready();
-
-        const modelPath = path.join(__dirname, '../node_modules/@vladmandic/face-api/model');
-        
-        console.log("Đang tải models nhận diện...");
-        try {
-            await Promise.all([
-                faceapi.nets.ssdMobilenetv1.loadFromDisk(modelPath),
-                faceapi.nets.faceLandmark68Net.loadFromDisk(modelPath),
-                faceapi.nets.faceRecognitionNet.loadFromDisk(modelPath)
-            ]);
-        } catch (modelError) {
-            console.error("Lỗi load models:", modelError.message);
-            return res.status(500).json({ 
-                success: false, 
-                message: "Không tìm thấy file model. Kiểm tra đường dẫn node_modules.", 
-                error: modelError.message 
-            });
+            return res.status(400).json({ success: false, message: 'Vui lòng cung cấp đúng 3 link ảnh.' });
         }
 
         const embeddings = [];
 
-        for (const url of urls) {
-            console.log(`Đang xử lý ảnh: ${url}`);
-            try {
-                const img = await loadImage(url);
-                const detection = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor();
+        console.log("🤖 Đang nhờ Python xử lý 3 ảnh cùng lúc...");
+        const startAITime = Date.now();
 
-                if (!detection) {
-                    console.log(`[CẢNH BÁO] Không tìm thấy khuôn mặt trong ảnh: ${url}`);
-                    continue;
-                }
-                embeddings.push(Array.from(detection.descriptor));
-                console.log(`Đã trích xuất thành công: ${url}`);
-            } catch (imgError) {
-                console.error(`[LỖI] Khi tải/xử lý ảnh ${url}:`, imgError.message);
+        // 🚀 BẮN SONG SONG 3 REQUEST SANG PYTHON
+        const aiPromises = urls.map(async (url) => {
+            const aiResponse = await fetch(PYTHON_AI_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url })
+            });
+            return aiResponse.json();
+        });
+
+        // Chờ Python trả kết quả về
+        const aiResults = await Promise.all(aiPromises);
+
+        for (const aiData of aiResults) {
+            if (aiData.success) {
+                embeddings.push(aiData.embedding);
+            } else {
+                console.log(`[CẢNH BÁO] Python từ chối ảnh:`, aiData.detail);
             }
         }
+
+        const aiDuration = ((Date.now() - startAITime) / 1000).toFixed(2);
+        console.log(`⏱️ THỜI GIAN PYTHON XỬ LÝ 3 ẢNH: ${aiDuration} giây`);
 
         if (embeddings.length !== 3) {
             return res.status(400).json({
                 success: false,
-                message: `Chỉ trích xuất được ${embeddings.length}/3 khuôn mặt.`
+                message: `Chỉ trích xuất được ${embeddings.length}/3 khuôn mặt. Vui lòng chụp rõ mặt hơn.`
             });
         }
 
+        // Lưu vào Database
         const embeddingJSON = JSON.stringify(embeddings);
         const updateQuery = `
             UPDATE users SET face_mesh_data = $1, is_face_updated = true
@@ -157,130 +120,91 @@ router.post('/testRegister', async (req, res) => {
             return res.status(404).json({ success: false, message: "Không tìm thấy user" });
         }
 
+        const totalDuration = ((Date.now() - startTotalTime) / 1000).toFixed(2);
+        console.log(`🏁 TỔNG THỜI GIAN TỪ LÚC NHẬN API TỚI KHI LƯU DB: ${totalDuration} giây`);
+
         res.json({
             success: true,
-            message: 'Đăng ký khuôn mặt thành công!',
+            message: 'Đăng ký khuôn mặt thành công qua Microservice!',
             data: result.rows[0]
         });
 
     } catch (error) {
-        console.error('Lỗi nghiêm trọng:', error);
-        res.status(500).json({ success: false, message: 'Lỗi server: ' + error.message });
+        console.error('Lỗi /testRegister:', error);
+        res.status(500).json({ success: false, message: 'Lỗi server Node.js: ' + error.message });
     }
 });
 
+// =========================================================================
+// API 2: ĐIỂM DANH (SO SÁNH KHUÔN MẶT QUA PYTHON)
+// =========================================================================
 router.post('/checkAttendance', async (req, res) => {
     try {
-        console.log("Hello")
         const { userId, url } = req.body;
-        console.log("data", req.body)
-
-        if (!isAILoaded) {
-            return res.status(503).json({ success: false, message: "Server AI đang khởi động, vui lòng đợi vài giây rồi thử lại!" });
-        }
 
         if (!userId || !url) {
-            return res.status(400).json({
-                success: false,
-                message: 'Vui lòng cung cấp "userId" và "url" ảnh để điểm danh.'
-            });
+            return res.status(400).json({ success: false, message: 'Thiếu userId hoặc url ảnh.' });
         }
 
-        // 1. Lấy dữ liệu khuôn mặt đã đăng ký từ Database
+        // 1. Lấy 3 khuôn mặt gốc từ DB
         const userQuery = `SELECT id, username, full_name, face_mesh_data FROM users WHERE id = $1`;
         const userResult = await pool.query(userQuery, [userId]);
 
-        if (userResult.rowCount === 0) {
-            return res.status(404).json({ success: false, message: "Không tìm thấy user." });
-        }
-
+        if (userResult.rowCount === 0) return res.status(404).json({ success: false, message: "User không tồn tại." });
         const user = userResult.rows[0];
 
         if (!user.face_mesh_data) {
-            return res.status(400).json({ 
-                success: false, 
-                message: "User này chưa đăng ký khuôn mặt (chưa có face_mesh_data)." 
-            });
+            return res.status(400).json({ success: false, message: "User chưa đăng ký khuôn mặt." });
         }
 
-        // Phục hồi lại định dạng dữ liệu (Từ mảng JS thuần sang Float32Array mà face-api cần)
-        // Kiểm tra nếu nó là chuỗi thì mới parse, còn nếu pg đã tự parse thành mảng rồi thì dùng luôn
-const savedEmbeddingsArray = typeof user.face_mesh_data === 'string' 
-    ? JSON.parse(user.face_mesh_data) 
-    : user.face_mesh_data;
-        const labeledDescriptors = savedEmbeddingsArray.map(arr => new Float32Array(arr));
+        // Parse cẩn thận dữ liệu từ DB
+        const savedEmbeddings = typeof user.face_mesh_data === 'string'
+            ? JSON.parse(user.face_mesh_data)
+            : user.face_mesh_data;
 
-        console.log(`Đang xử lý ảnh điểm danh của user: ${user.full_name || userId}`);
+        // 2. Gửi ảnh điểm danh sang Python
+        console.log(`Đang gửi ảnh điểm danh sang Python...`);
+        const aiResponse = await fetch(PYTHON_AI_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url })
+        });
 
-        // 2. Khởi tạo TensorFlow và Models (Giống API trước)
-        await faceapi.tf.setBackend('cpu');
-        await faceapi.tf.ready();
-        const modelPath = path.join(__dirname, '../node_modules/@vladmandic/face-api/model');
-        
-        await Promise.all([
-            faceapi.nets.ssdMobilenetv1.loadFromDisk(modelPath),
-            faceapi.nets.faceLandmark68Net.loadFromDisk(modelPath),
-            faceapi.nets.faceRecognitionNet.loadFromDisk(modelPath)
-        ]);
+        const aiData = await aiResponse.json();
 
-        // 3. Trích xuất khuôn mặt từ ảnh mới
-        const { loadImage } = require('canvas');
-        let img;
-        try {
-            img = await loadImage(url);
-        } catch (err) {
-            return res.status(400).json({ success: false, message: "Không thể tải ảnh từ url này." });
+        if (!aiResponse.ok || !aiData.success) {
+            return res.status(400).json({ success: false, message: aiData.detail || "Không tìm thấy khuôn mặt." });
         }
 
-        const detection = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor();
+        const newEmbedding = aiData.embedding;
 
-        if (!detection) {
-            return res.status(400).json({
-                success: false,
-                message: 'Không tìm thấy khuôn mặt nào trong ảnh điểm danh. Vui lòng chụp lại rõ hơn!'
-            });
-        }
+        // 3. Tiến hành so sánh bằng thuật toán Euclidean
+        const distances = savedEmbeddings.map(savedEmb => euclideanDistance(savedEmb, newEmbedding));
+        const bestMatchDistance = Math.min(...distances);
 
-        // 4. TIẾN HÀNH SO SÁNH (MATCHING)
-        // Tạo một nhãn dán (Label) chứa 3 khuôn mặt mẫu của user đó
-        const referenceData = new faceapi.LabeledFaceDescriptors(user.id.toString(), labeledDescriptors);
-        
-        // Tạo bộ so sánh với độ lệch tối đa cho phép là 0.55 (Càng nhỏ càng khắt khe)
-        // Ngưỡng 0.6 là mặc định. Bạn có thể hạ xuống 0.5 để chống nhận diện nhầm người khác có nét giống.
-        const faceMatcher = new faceapi.FaceMatcher([referenceData], 0.55);
+        console.log(`Độ lệch khuôn mặt: ${bestMatchDistance}`);
 
-        // Tìm khuôn mặt giống nhất với ảnh vừa gửi lên
-        const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
+        // Ngưỡng 10.0 cho thuật toán Facenet của thư viện DeepFace
+        const THRESHOLD = 10.0;
 
-        // Nếu cái tên (label) trùng với userId -> Đúng người!
-        if (bestMatch.label === user.id.toString()) {
-            
-            // Tới đây là thành công, bạn có thể INSERT vào bảng lịch sử chấm công (attendance_logs) ở đây
-            // const insertLogQuery = `INSERT INTO attendance_logs (user_id, time_in) VALUES ($1, NOW()) RETURNING *`;
-            // await pool.query(insertLogQuery, [userId]);
-
+        if (bestMatchDistance <= THRESHOLD) {
             return res.json({
                 success: true,
-                message: 'Điểm danh thành công! Xác nhận đúng khuôn mặt.',
-                match_distance: bestMatch.distance, // Khoảng cách lệch (VD: 0.35 -> rất giống)
-                user: {
-                    id: user.id,
-                    username: user.username,
-                    full_name: user.full_name
-                }
+                message: 'Điểm danh thành công! Xác nhận đúng người.',
+                match_distance: bestMatchDistance.toFixed(2),
+                user: { id: user.id, full_name: user.full_name }
             });
         } else {
-            // bestMatch.label sẽ mang giá trị "unknown" nếu độ lệch > 0.55
             return res.status(401).json({
                 success: false,
-                message: 'Khuôn mặt không khớp với dữ liệu đã đăng ký! Vui lòng thử lại.',
-                match_distance: bestMatch.distance 
+                message: 'Khuôn mặt không khớp! Vui lòng chụp lại rõ hơn.',
+                match_distance: bestMatchDistance.toFixed(2)
             });
         }
 
     } catch (error) {
-        console.error('Lỗi trong /checkAttendance:', error);
-        res.status(500).json({ success: false, message: 'Lỗi server: ' + error.message });
+        console.error('Lỗi /checkAttendance:', error);
+        res.status(500).json({ success: false, message: 'Lỗi server Node.js: ' + error.message });
     }
 });
 
