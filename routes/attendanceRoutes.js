@@ -14,8 +14,8 @@ const router = express.Router();
 // CẤU HÌNH MICROSERVICE
 // ==========================================
 // Đảm bảo IP này trùng với IP mà server Python đang chạy (hoặc dùng localhost/127.0.0.1 nếu chạy cùng máy)
-const PYTHON_AI_URL = 'http://192.168.2.29:8000/api/extract';
-const PYTHON_HEALTH_URL = 'http://192.168.2.29:8000/api/health';
+const PYTHON_AI_URL = 'http://127.0.0.1:8000/api/extract';
+const PYTHON_HEALTH_URL = 'http://127.0.0.1:8000/api/health';
 
 // Hàm tính khoảng cách giữa 2 vector khuôn mặt (Euclidean Distance)
 const euclideanDistance = (arr1, arr2) => {

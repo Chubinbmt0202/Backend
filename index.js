@@ -28,5 +28,5 @@ app.use('/api/attendance', attendanceRoutes);
 
 // Lắng nghe ở cổng (port) đã định
 app.listen(port, () => {
-    console.log(`Server đang chạy tại http://localhost:${port}`);
+    console.log(`Server đang chạy tại http://172.16.96.173:${port}`);
 });
