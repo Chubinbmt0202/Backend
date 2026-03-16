@@ -28,8 +28,6 @@ export const login = async (req, res) => {
     const user = userResult.rows[0];
 
     // Kiểm tra xem mật khẩu đang lưu là mật khẩu đã hash hay mật khẩu thuần
-    // (Do lúc trước mật khẩu lưu dưới dạng text thường)
-    // bcrypt.compare sẽ trả về false nếu chuỗi hash không hợp lệ (nghĩa là nó là text thường)
     let isMatch = false;
 
     if (
@@ -51,11 +49,24 @@ export const login = async (req, res) => {
       });
     }
 
+    // =========================================================
+    // 🚀 TRUY VẤN THÊM LỊCH SỬ CHẤM CÔNG CỦA USER NÀY
+    // =========================================================  
+    const attendanceQuery = `
+      SELECT log_date, check_in_time, check_out_time, status 
+      FROM attendance_logs 
+      WHERE user_id = $1 
+      ORDER BY log_date DESC 
+      LIMIT 30;
+    `;
+    const attendanceResult = await pool.query(attendanceQuery, [user.id]);
+    const attendanceLogs = attendanceResult.rows;
+
     // Tạo JWT Token
     const token = jwt.sign(
-      { 
-        id: user.id, 
-        username: user.username, 
+      {
+        id: user.id,
+        username: user.username,
         role: user.role,
         is_face_updated: user.is_face_updated
       },
@@ -74,6 +85,8 @@ export const login = async (req, res) => {
         full_name: user.full_name,
         role: user.role,
         is_face_updated: user.is_face_updated,
+        // 🚀 ĐÍNH KÈM LỊCH SỬ CHẤM CÔNG VÀO OBJECT TRẢ VỀ
+        attendance_history: attendanceLogs
       },
     });
   } catch (error) {

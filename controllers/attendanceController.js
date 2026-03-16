@@ -142,12 +142,12 @@ export const verifyAttendanceFace = async (req, res) => {
 
         // 2. So sánh embedding gửi lên với 3 góc đã lưu
         const match = findBestMatch(embedding, storedData.face_mesh_data);
-        
+
         const similarity = match.bestSimilarity;
         const distance = match.bestDistance;
-        
+
         // Ngưỡng yêu cầu từ người dùng: > 80%
-        const minSimilarity = 80; 
+        const minSimilarity = 80;
         const isMatch = similarity >= minSimilarity;
 
         if (isMatch) {
@@ -228,3 +228,5 @@ export const getEmployeeAttendanceHistory = async (req, res) => {
         });
     }
 };
+
+/// API CHẤM CÔng NHÂN VIÊN

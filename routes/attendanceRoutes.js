@@ -188,12 +188,54 @@ router.post('/checkAttendance', async (req, res) => {
         const THRESHOLD = 10.0;
 
         if (bestMatchDistance <= THRESHOLD) {
+            // ==========================================
+            // 🚀 4. LƯU LỊCH SỬ CHẤM CÔNG VÀO DATABASE
+            // ==========================================
+
+            // Tìm xem hôm nay user đã điểm danh lần nào chưa
+            const checkLogQuery = `SELECT id, check_in_time, check_out_time FROM attendance_logs WHERE user_id = $1 AND log_date = CURRENT_DATE`;
+            const checkLogResult = await pool.query(checkLogQuery, [user.id]);
+
+            let timeRecorded;
+            let attendanceType;
+
+            if (checkLogResult.rowCount === 0) {
+                // TRƯỜNG HỢP 1: Chưa điểm danh -> CHECK-IN
+                const insertQuery = `
+                    INSERT INTO attendance_logs (user_id, log_date, check_in_time, check_in_photo_url, status)
+                    VALUES ($1, CURRENT_DATE, CURRENT_TIMESTAMP, $2, 'present')
+                    RETURNING check_in_time;
+                `;
+                const insertResult = await pool.query(insertQuery, [user.id, url]);
+                timeRecorded = insertResult.rows[0].check_in_time;
+                attendanceType = "Check-in";
+            } else {
+                // TRƯỜNG HỢP 2: Đã Check-in rồi -> CHECK-OUT
+                const logId = checkLogResult.rows[0].id;
+                const updateQuery = `
+                    UPDATE attendance_logs
+                    SET check_out_time = CURRENT_TIMESTAMP, check_out_photo_url = $2
+                    WHERE id = $1
+                    RETURNING check_out_time;
+                `;
+                const updateResult = await pool.query(updateQuery, [logId, url]);
+                timeRecorded = updateResult.rows[0].check_out_time;
+                attendanceType = "Check-out";
+            }
+
+            // 5. Trả dữ liệu về cho Điện thoại hiển thị
             return res.json({
                 success: true,
-                message: 'Điểm danh thành công! Xác nhận đúng người.',
+                message: `Điểm danh thành công! Xác nhận đúng người.`,
                 match_distance: bestMatchDistance.toFixed(2),
-                user: { id: user.id, full_name: user.full_name }
+                data: {
+                    iduser: user.id,
+                    fullname: user.full_name,
+                    time: timeRecorded, // Ngày giờ chấm công (lấy chuẩn từ máy chủ DB)
+                    type: attendanceType // Trả thêm loại để App hiện "Bạn vừa Check-in" hay "Bạn vừa Check-out"
+                }
             });
+
         } else {
             return res.status(401).json({
                 success: false,
