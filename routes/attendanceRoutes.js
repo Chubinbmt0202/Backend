@@ -239,7 +239,7 @@ router.post('/checkAttendance', async (req, res) => {
         } else {
             return res.status(401).json({
                 success: false,
-                message: 'Khuôn mặt không khớp! Vui lòng chụp lại rõ hơn.',
+                message: 'Khuôn mặt không khớp! Vui lòng lùi lại .',
                 match_distance: bestMatchDistance.toFixed(2)
             });
         }

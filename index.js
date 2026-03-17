@@ -7,7 +7,7 @@ import pool from './config/db.js'; // Import file kết nối database
 import employeeRoutes from './routes/employeeRoutes.js'; // Import route nhân viên
 import authRoutes from './routes/authRoutes.js'; // Import route authentication
 import attendanceRoutes from './routes/attendanceRoutes.js'; // Import route chấm công
-
+import shiftRoutes from './routes/shiftRoutes.js'; // Import route ca
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -25,8 +25,9 @@ app.get('/', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/attendance', attendanceRoutes);
+app.use('/api/shifts', shiftRoutes);
 
 // Lắng nghe ở cổng (port) đã định
 app.listen(port, () => {
-    console.log(`Server đang chạy tại http://172.16.96.173:${port}`);
+    console.log(`Server đang chạy tại http://localhost:${port}`);
 });
