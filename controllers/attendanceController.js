@@ -1,6 +1,18 @@
 import pool from '../config/db.js';
 import { findBestMatch } from '../utils/faceUtils.js';
 
+const normalizeEmbedding = (raw) => {
+    if (raw == null) return raw;
+    if (typeof raw === 'string') {
+        try {
+            return JSON.parse(raw);
+        } catch {
+            return raw;
+        }
+    }
+    return raw;
+};
+
 /**
  * Controller API Lấy trạng thái chấm công của nhân viên trong ngày
  * @param {Object} req - Request object
@@ -24,33 +36,30 @@ export const getAttendanceStatus = async (req, res) => {
 
         const query = `
             SELECT 
-                log_date,
-                check_in_time,
-                check_out_time,
-                status
-            FROM attendance_logs
-            WHERE user_id = $1 AND log_date = $2
+                $2::date AS log_date,
+                MIN(cc.thoi_gian) FILTER (WHERE cc.loai = 'vao') AS check_in_time,
+                MAX(cc.thoi_gian) FILTER (WHERE cc.loai = 'ra') AS check_out_time,
+                CASE
+                    WHEN MIN(cc.thoi_gian) FILTER (WHERE cc.loai = 'vao') IS NULL THEN 'none'
+                    WHEN MAX(cc.thoi_gian) FILTER (WHERE cc.loai = 'ra') IS NULL THEN 'checked_in'
+                    ELSE 'checked_out'
+                END AS status
+            FROM cham_cong cc
+            WHERE cc.nhan_vien_id = $1
+              AND (date(cc.thoi_gian))::date = $2::date
         `;
 
         const result = await pool.query(query, [userId, queryDate]);
 
-        if (result.rowCount === 0) {
-            return res.status(200).json({
-                success: true,
-                message: 'Không tìm thấy dữ liệu chấm công cho ngày này.',
-                data: {
-                    log_date: queryDate,
-                    check_in_time: null,
-                    check_out_time: null,
-                    status: 'none'
-                }
-            });
-        }
-
         res.status(200).json({
             success: true,
             message: 'Lấy dữ liệu chấm công thành công.',
-            data: result.rows[0]
+            data: result.rows[0] || {
+                log_date: queryDate,
+                check_in_time: null,
+                check_out_time: null,
+                status: 'none'
+            }
         });
 
     } catch (error) {
@@ -69,22 +78,33 @@ export const getAttendanceStatus = async (req, res) => {
  */
 export const getAllAttendance = async (req, res) => {
     try {
+        const { date } = req.query;
+        const queryDate = date || new Date().toISOString().split('T')[0];
+
         const query = `
             SELECT 
-                u.id AS employee_id,
-                u.full_name,
-                u.username,
-                al.log_date,
-                al.check_in_time,
-                al.check_out_time,
-                al.status
-            FROM users u
-            LEFT JOIN attendance_logs al ON u.id = al.user_id
-            WHERE u.role = 'employee'
-            ORDER BY al.log_date DESC NULLS LAST, u.id ASC
+                nv.id AS employee_id,
+                nv.ho_ten AS full_name,
+                tk.ten_dang_nhap AS username,
+                $1::date AS log_date,
+                MIN(cc.thoi_gian) FILTER (WHERE cc.loai = 'vao') AS check_in_time,
+                MAX(cc.thoi_gian) FILTER (WHERE cc.loai = 'ra') AS check_out_time,
+                CASE
+                    WHEN MIN(cc.thoi_gian) FILTER (WHERE cc.loai = 'vao') IS NULL THEN 'none'
+                    WHEN MAX(cc.thoi_gian) FILTER (WHERE cc.loai = 'ra') IS NULL THEN 'checked_in'
+                    ELSE 'checked_out'
+                END AS status
+            FROM nhan_vien nv
+            LEFT JOIN tai_khoan tk ON tk.id = nv.tai_khoan_id
+            LEFT JOIN cham_cong cc
+              ON cc.nhan_vien_id = nv.id
+             AND (date(cc.thoi_gian))::date = $1::date
+            WHERE tk.vai_tro = 'nhan_vien'
+            GROUP BY nv.id, nv.ho_ten, tk.ten_dang_nhap
+            ORDER BY nv.id ASC
         `;
 
-        const result = await pool.query(query);
+        const result = await pool.query(query, [queryDate]);
 
         res.status(200).json({
             success: true,
@@ -121,7 +141,15 @@ export const verifyAttendanceFace = async (req, res) => {
         }
 
         // 1. Lấy dữ liệu khuôn mặt đã lưu trong DB
-        const userQuery = `SELECT face_mesh_data, is_face_updated FROM users WHERE id = $1`;
+        const userQuery = `
+            SELECT
+                nv.id,
+                nv.du_lieu_khuon_mat,
+                nv.khuon_mat_da_cap_nhat
+            FROM nhan_vien nv
+            WHERE nv.id = $1 OR nv.tai_khoan_id = $1
+            LIMIT 1
+        `;
         const userResult = await pool.query(userQuery, [userId]);
 
         if (userResult.rowCount === 0) {
@@ -133,7 +161,7 @@ export const verifyAttendanceFace = async (req, res) => {
 
         const storedData = userResult.rows[0];
 
-        if (!storedData.is_face_updated || !storedData.face_mesh_data) {
+        if (!storedData.khuon_mat_da_cap_nhat || !storedData.du_lieu_khuon_mat) {
             return res.status(400).json({
                 success: false,
                 message: 'Người dùng này chưa cập nhật dữ liệu khuôn mặt.'
@@ -141,7 +169,7 @@ export const verifyAttendanceFace = async (req, res) => {
         }
 
         // 2. So sánh embedding gửi lên với 3 góc đã lưu
-        const match = findBestMatch(embedding, storedData.face_mesh_data);
+        const match = findBestMatch(embedding, normalizeEmbedding(storedData.du_lieu_khuon_mat));
 
         const similarity = match.bestSimilarity;
         const distance = match.bestDistance;
@@ -196,13 +224,18 @@ export const getEmployeeAttendanceHistory = async (req, res) => {
 
         const query = `
             SELECT 
-                log_date,
-                TO_CHAR(log_date, 'TMDay') AS day_of_week,
-                check_in_time,
-                check_out_time,
-                status
-            FROM attendance_logs
-            WHERE user_id = $1
+                (date(cc.thoi_gian))::date AS log_date,
+                TO_CHAR((date(cc.thoi_gian))::date, 'TMDay') AS day_of_week,
+                MIN(cc.thoi_gian) FILTER (WHERE cc.loai = 'vao') AS check_in_time,
+                MAX(cc.thoi_gian) FILTER (WHERE cc.loai = 'ra') AS check_out_time,
+                CASE
+                    WHEN MIN(cc.thoi_gian) FILTER (WHERE cc.loai = 'vao') IS NULL THEN 'none'
+                    WHEN MAX(cc.thoi_gian) FILTER (WHERE cc.loai = 'ra') IS NULL THEN 'checked_in'
+                    ELSE 'checked_out'
+                END AS status
+            FROM cham_cong cc
+            WHERE cc.nhan_vien_id = $1
+            GROUP BY (date(cc.thoi_gian))::date
             ORDER BY log_date DESC
         `;
 

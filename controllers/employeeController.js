@@ -2,11 +2,37 @@ import pool from '../config/db.js';
 import bcrypt from 'bcrypt';
 import { findBestMatch } from '../utils/faceUtils.js';
 
-// Controller API Thêm nhân viên mới (Vào bảng users)
+const normalizeEmbedding = (raw) => {
+    if (raw == null) return raw;
+    if (typeof raw === 'string') {
+        try {
+            return JSON.parse(raw);
+        } catch {
+            return raw;
+        }
+    }
+    return raw;
+};
+
+// Controller API Thêm nhân viên mới (tai_khoan + nhan_vien)
 export const addEmployee = async (req, res) => {
     console.log("Dữ liệu nhận được:", req.body);
     try {
-        const { username, password, full_name, role } = req.body;
+        const {
+            username,
+            password,
+            full_name,
+            role,
+            email,
+            phone_number,
+            date_of_birth,
+            gender,
+            address,
+            employee_code,
+            title,
+            department_id,
+            start_date
+        } = req.body;
 
         // Kiểm tra dữ liệu đầu vào cơ bản
         if (!username || !password || !full_name) {
@@ -16,29 +42,64 @@ export const addEmployee = async (req, res) => {
             });
         }
 
-        // Chức vụ mặc định là 'employee' nếu không truyền
-        const userRole = role === 'admin' ? 'admin' : 'employee';
+        // Vai trò theo enum trong database.sql
+        const userRole = role || 'nhan_vien';
+        const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Câu lệnh SQL thêm nhân viên vào bảng users
-        const newUser = await pool.query(
-            "INSERT INTO users (username, password_hash, role, full_name) VALUES ($1, $2, $3, $4) RETURNING id, username, role, full_name, created_at",
-            [username, password, userRole, full_name]
+        const maNhanVien = employee_code || `NV-${Date.now()}`;
+
+        await pool.query('BEGIN');
+
+        const newAccount = await pool.query(
+            `
+                INSERT INTO tai_khoan (ten_dang_nhap, email, so_dien_thoai, mat_khau_hash, vai_tro)
+                VALUES ($1, $2, $3, $4, $5)
+                RETURNING id, ten_dang_nhap, email, so_dien_thoai, vai_tro, trang_thai, tao_luc
+            `,
+            [username, email || null, phone_number || null, hashedPassword, userRole]
         );
+
+        const taiKhoanId = newAccount.rows[0].id;
+
+        const newEmployee = await pool.query(
+            `
+                INSERT INTO nhan_vien (tai_khoan_id, ma_nhan_vien, ho_ten, ngay_sinh, gioi_tinh, dia_chi, chuc_danh, phong_ban_id, ngay_vao_lam)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                RETURNING id, tai_khoan_id, ma_nhan_vien, ho_ten, ngay_sinh, gioi_tinh, dia_chi, chuc_danh, phong_ban_id, ngay_vao_lam, khuon_mat_da_cap_nhat, tao_luc
+            `,
+            [
+                taiKhoanId,
+                maNhanVien,
+                full_name,
+                date_of_birth || null,
+                gender || null,
+                address || null,
+                title || null,
+                department_id || null,
+                start_date || null
+            ]
+        );
+
+        await pool.query('COMMIT');
 
         res.status(201).json({
             success: true,
             message: 'Thêm nhân viên mới thành công!',
-            data: newUser.rows[0]
+            data: {
+                tai_khoan: newAccount.rows[0],
+                nhan_vien: newEmployee.rows[0]
+            }
         });
 
     } catch (error) {
         console.error('Lỗi khi thêm nhân viên:', error.message);
+        try { await pool.query('ROLLBACK'); } catch { }
 
         // Bắt lỗi trùng lặp username
         if (error.code === '23505') {
             return res.status(400).json({
                 success: false,
-                message: 'Username đã tồn tại trong hệ thống.'
+                message: 'Dữ liệu bị trùng (username/email/số điện thoại/mã nhân viên).'
             });
         }
 
@@ -52,9 +113,30 @@ export const addEmployee = async (req, res) => {
 // Controller API Lấy danh sách nhân viên
 export const getEmployees = async (req, res) => {
     try {
-        // Chỉ lấy những thông tin cần thiết, không lấy password_hash
         const employees = await pool.query(
-            "SELECT id, username, full_name, role, is_face_updated, created_at, email, date_of_birth, phone_number, gender, address FROM users ORDER BY created_at DESC"
+            `
+                SELECT
+                    nv.id AS nhan_vien_id,
+                    nv.ma_nhan_vien,
+                    nv.ho_ten AS full_name,
+                    nv.ngay_sinh AS date_of_birth,
+                    nv.gioi_tinh AS gender,
+                    nv.dia_chi AS address,
+                    nv.chuc_danh AS title,
+                    nv.phong_ban_id AS department_id,
+                    nv.ngay_vao_lam AS start_date,
+                    nv.khuon_mat_da_cap_nhat AS is_face_updated,
+                    tk.id AS tai_khoan_id,
+                    tk.ten_dang_nhap AS username,
+                    tk.email,
+                    tk.so_dien_thoai AS phone_number,
+                    tk.vai_tro AS role,
+                    tk.trang_thai,
+                    tk.tao_luc AS created_at
+                FROM nhan_vien nv
+                LEFT JOIN tai_khoan tk ON tk.id = nv.tai_khoan_id
+                ORDER BY nv.tao_luc DESC
+            `
         );
 
         res.status(200).json({
@@ -85,12 +167,29 @@ export const getEmployeeByID = async (req, res) => {
             });
         }
 
-        // Câu lệnh SQL lấy thông tin nhân viên (không lấy password_hash và dữ liệu khuôn mặt thô)
         const query = `
-            SELECT id, username, full_name, role, is_face_updated, created_at, 
-                   email, date_of_birth, phone_number, gender, address 
-            FROM users 
-            WHERE id = $1
+            SELECT
+                nv.id AS nhan_vien_id,
+                nv.ma_nhan_vien,
+                nv.ho_ten AS full_name,
+                nv.ngay_sinh AS date_of_birth,
+                nv.gioi_tinh AS gender,
+                nv.dia_chi AS address,
+                nv.chuc_danh AS title,
+                nv.phong_ban_id AS department_id,
+                nv.ngay_vao_lam AS start_date,
+                nv.khuon_mat_da_cap_nhat AS is_face_updated,
+                tk.id AS tai_khoan_id,
+                tk.ten_dang_nhap AS username,
+                tk.email,
+                tk.so_dien_thoai AS phone_number,
+                tk.vai_tro AS role,
+                tk.trang_thai,
+                tk.tao_luc AS created_at
+            FROM nhan_vien nv
+            LEFT JOIN tai_khoan tk ON tk.id = nv.tai_khoan_id
+            WHERE nv.id = $1
+            LIMIT 1
         `;
 
         const employee = await pool.query(query, [id]);
@@ -123,7 +222,21 @@ export const getEmployeeByID = async (req, res) => {
 export const updateEmployee = async (req, res) => {
     try {
         const { id } = req.params;
-        const { full_name, role, password } = req.body;
+        const {
+            full_name,
+            role,
+            password,
+            email,
+            phone_number,
+            date_of_birth,
+            gender,
+            address,
+            title,
+            department_id,
+            start_date,
+            employee_code,
+            status
+        } = req.body;
 
         // Kiểm tra id có hợp lệ không
         if (!id || isNaN(id)) {
@@ -134,62 +247,118 @@ export const updateEmployee = async (req, res) => {
         }
 
         // Kiểm tra có dữ liệu nào để cập nhật không
-        if (!full_name && !role && !password) {
+        if (
+            !full_name && !role && !password &&
+            !email && !phone_number && !date_of_birth && !gender && !address &&
+            !title && !department_id && !start_date && !employee_code && !status
+        ) {
             return res.status(400).json({
                 success: false,
                 message: 'Vui lòng cung cấp ít nhất một trường để cập nhật (full_name, role, password).'
             });
         }
 
-        // Xây dựng câu query động dựa trên các trường được gửi lên
-        const fields = [];
-        const values = [];
-        let paramIndex = 1;
-
-        if (full_name) {
-            fields.push(`full_name = $${paramIndex++}`);
-            values.push(full_name);
-        }
-
-        if (role) {
-            const userRole = role === 'admin' ? 'admin' : 'employee';
-            fields.push(`role = $${paramIndex++}`);
-            values.push(userRole);
-        }
-
-        if (password) {
-            const hashedPassword = await bcrypt.hash(password, 10);
-            fields.push(`password_hash = $${paramIndex++}`);
-            values.push(hashedPassword);
-        }
-
-        // Thêm id vào cuối mảng values
-        values.push(id);
-
-        const updateQuery = `
-            UPDATE users 
-            SET ${fields.join(', ')} 
-            WHERE id = $${paramIndex} 
-            RETURNING id, username, full_name, role, is_face_updated, created_at, email, date_of_birth, phone_number, gender, address
-        `;
-
-        const result = await pool.query(updateQuery, values);
-
-        if (result.rowCount === 0) {
+        // Lấy tai_khoan_id để update cả 2 bảng
+        const existing = await pool.query(
+            `SELECT tai_khoan_id FROM nhan_vien WHERE id = $1 LIMIT 1`,
+            [id]
+        );
+        if (existing.rowCount === 0) {
             return res.status(404).json({
                 success: false,
                 message: 'Không tìm thấy nhân viên với ID này.'
             });
         }
 
+        const taiKhoanId = existing.rows[0].tai_khoan_id;
+
+        await pool.query('BEGIN');
+
+        // Update nhan_vien
+        const nvFields = [];
+        const nvValues = [];
+        let nvIdx = 1;
+
+        if (full_name) { nvFields.push(`ho_ten = $${nvIdx++}`); nvValues.push(full_name); }
+        if (date_of_birth) { nvFields.push(`ngay_sinh = $${nvIdx++}`); nvValues.push(date_of_birth); }
+        if (gender) { nvFields.push(`gioi_tinh = $${nvIdx++}`); nvValues.push(gender); }
+        if (address) { nvFields.push(`dia_chi = $${nvIdx++}`); nvValues.push(address); }
+        if (title) { nvFields.push(`chuc_danh = $${nvIdx++}`); nvValues.push(title); }
+        if (department_id) { nvFields.push(`phong_ban_id = $${nvIdx++}`); nvValues.push(department_id); }
+        if (start_date) { nvFields.push(`ngay_vao_lam = $${nvIdx++}`); nvValues.push(start_date); }
+        if (employee_code) { nvFields.push(`ma_nhan_vien = $${nvIdx++}`); nvValues.push(employee_code); }
+
+        if (nvFields.length > 0) {
+            nvValues.push(id);
+            await pool.query(
+                `UPDATE nhan_vien SET ${nvFields.join(', ')}, cap_nhat_luc = now() WHERE id = $${nvIdx}`,
+                nvValues
+            );
+        }
+
+        // Update tai_khoan
+        const tkFields = [];
+        const tkValues = [];
+        let tkIdx = 1;
+
+        if (role) { tkFields.push(`vai_tro = $${tkIdx++}`); tkValues.push(role); }
+        if (email) { tkFields.push(`email = $${tkIdx++}`); tkValues.push(email); }
+        if (phone_number) { tkFields.push(`so_dien_thoai = $${tkIdx++}`); tkValues.push(phone_number); }
+        if (status) { tkFields.push(`trang_thai = $${tkIdx++}`); tkValues.push(status); }
+        if (password) {
+            const hashedPassword = await bcrypt.hash(password, 10);
+            tkFields.push(`mat_khau_hash = $${tkIdx++}`);
+            tkValues.push(hashedPassword);
+        }
+
+        if (tkFields.length > 0 && taiKhoanId) {
+            tkValues.push(taiKhoanId);
+            await pool.query(
+                `UPDATE tai_khoan SET ${tkFields.join(', ')}, cap_nhat_luc = now() WHERE id = $${tkIdx}`,
+                tkValues
+            );
+        }
+
+        await pool.query('COMMIT');
+
+        // Trả lại bản ghi mới nhất
+        const updated = await pool.query(
+            `
+                SELECT
+                    nv.id AS nhan_vien_id,
+                    nv.ma_nhan_vien,
+                    nv.ho_ten AS full_name,
+                    nv.ngay_sinh AS date_of_birth,
+                    nv.gioi_tinh AS gender,
+                    nv.dia_chi AS address,
+                    nv.chuc_danh AS title,
+                    nv.phong_ban_id AS department_id,
+                    nv.ngay_vao_lam AS start_date,
+                    nv.khuon_mat_da_cap_nhat AS is_face_updated,
+                    tk.id AS tai_khoan_id,
+                    tk.ten_dang_nhap AS username,
+                    tk.email,
+                    tk.so_dien_thoai AS phone_number,
+                    tk.vai_tro AS role,
+                    tk.trang_thai,
+                    tk.tao_luc AS created_at
+                FROM nhan_vien nv
+                LEFT JOIN tai_khoan tk ON tk.id = nv.tai_khoan_id
+                WHERE nv.id = $1
+                LIMIT 1
+            `,
+            [id]
+        );
+
         res.status(200).json({
             success: true,
             message: 'Cập nhật thông tin nhân viên thành công!',
-            data: result.rows[0]
+            data: updated.rows[0]
         });
 
     } catch (error) {
         console.error('Lỗi khi cập nhật nhân viên:', error.message);
+        try { await pool.query('ROLLBACK'); } catch { }
         res.status(500).json({
             success: false,
             message: 'Lỗi server, vui lòng thử lại sau.'
@@ -210,28 +379,36 @@ export const deleteEmployee = async (req, res) => {
             });
         }
 
-        // Xoá nhân viên khỏi bảng users
-        const result = await pool.query(
-            "DELETE FROM users WHERE id = $1 RETURNING id, username, full_name, role",
+        const existing = await pool.query(
+            `SELECT id, tai_khoan_id, ho_ten FROM nhan_vien WHERE id = $1 LIMIT 1`,
             [id]
         );
 
-        // Kiểm tra có tìm thấy nhân viên để xoá không
-        if (result.rowCount === 0) {
+        if (existing.rowCount === 0) {
             return res.status(404).json({
                 success: false,
                 message: 'Không tìm thấy nhân viên với ID này.'
             });
         }
 
+        const taiKhoanId = existing.rows[0].tai_khoan_id;
+
+        await pool.query('BEGIN');
+        await pool.query(`DELETE FROM nhan_vien WHERE id = $1`, [id]);
+        if (taiKhoanId) {
+            await pool.query(`DELETE FROM tai_khoan WHERE id = $1`, [taiKhoanId]);
+        }
+        await pool.query('COMMIT');
+
         res.status(200).json({
             success: true,
             message: 'Xoá nhân viên thành công!',
-            data: result.rows[0]
+            data: { nhan_vien_id: Number(id), tai_khoan_id: taiKhoanId }
         });
 
     } catch (error) {
         console.error('Lỗi khi xoá nhân viên:', error.message);
+        try { await pool.query('ROLLBACK'); } catch { }
         res.status(500).json({
             success: false,
             message: 'Lỗi server, vui lòng thử lại sau.'
@@ -275,11 +452,12 @@ export const uploadEmployeeFace = async (req, res) => {
         const embeddingJSON = JSON.stringify(embedding);
 
         const updateQuery = `
-            UPDATE users 
-            SET face_mesh_data = $1,
-                is_face_updated = true
-            WHERE id = $2 
-            RETURNING id, username, full_name, is_face_updated;
+            UPDATE nhan_vien
+            SET du_lieu_khuon_mat = $1::jsonb,
+                khuon_mat_da_cap_nhat = true,
+                cap_nhat_luc = now()
+            WHERE id = $2
+            RETURNING id, ma_nhan_vien, ho_ten, khuon_mat_da_cap_nhat;
         `;
 
         // Chạy query (Sử dụng pool từ db.js của bạn)
@@ -315,11 +493,12 @@ export const requestFaceUpdate = async (req, res) => {
         }
 
         const updateQuery = `
-            UPDATE users 
-            SET face_mesh_data = NULL,
-                is_face_updated = false
-            WHERE id = $1 
-            RETURNING id, username, full_name, is_face_updated;
+            UPDATE nhan_vien
+            SET du_lieu_khuon_mat = NULL,
+                khuon_mat_da_cap_nhat = false,
+                cap_nhat_luc = now()
+            WHERE id = $1
+            RETURNING id, ma_nhan_vien, ho_ten, khuon_mat_da_cap_nhat;
         `;
 
         const result = await pool.query(updateQuery, [id]);
@@ -364,7 +543,19 @@ export const recognizeEmployeeFace = async (req, res) => {
         }
 
         // 1. Lấy thông tin nhân viên theo userId
-        const query = `SELECT id, username, full_name, role, face_mesh_data FROM users WHERE id = $1 AND is_face_updated = true`;
+        const query = `
+            SELECT
+                nv.id,
+                tk.ten_dang_nhap AS username,
+                nv.ho_ten AS full_name,
+                tk.vai_tro AS role,
+                nv.du_lieu_khuon_mat,
+                nv.khuon_mat_da_cap_nhat
+            FROM nhan_vien nv
+            LEFT JOIN tai_khoan tk ON tk.id = nv.tai_khoan_id
+            WHERE (nv.id = $1 OR nv.tai_khoan_id = $1) AND nv.khuon_mat_da_cap_nhat = true
+            LIMIT 1
+        `;
         const result = await pool.query(query, [userId]);
 
         // Nếu không tìm thấy dòng nào
@@ -379,9 +570,7 @@ export const recognizeEmployeeFace = async (req, res) => {
         const user = result.rows[0];
 
         // Đảm bảo parse mảng JSON nếu Database trả về kiểu chuỗi String
-        const storedEmbeddings = typeof user.face_mesh_data === 'string'
-            ? JSON.parse(user.face_mesh_data)
-            : user.face_mesh_data;
+        const storedEmbeddings = normalizeEmbedding(user.du_lieu_khuon_mat);
 
         // 3. Tiến hành so sánh ảnh camera gửi lên với 3 góc mặt đã lưu
         const match = findBestMatch(embedding, storedEmbeddings);
