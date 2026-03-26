@@ -39,7 +39,7 @@ app.use(
 
 // Một API test thử để xem server có chạy không     
 app.get('/', (req, res) => {
-    res.send('Backend App Chấm Công đang chạy bình thường!');
+  res.send('Backend App Chấm Công đang chạy bình thường!');
 });
 
 // Các API Routes
@@ -50,5 +50,5 @@ app.use('/api/shifts', shiftRoutes);
 
 // Lắng nghe ở cổng (port) đã định
 app.listen(port, () => {
-    console.log(`Server đang chạy tại http://localhost:${port}`);
+  console.log(`Server đang chạy tại http://172.16.96.33:${port}`);
 });
