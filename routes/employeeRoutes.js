@@ -7,7 +7,8 @@ import {
     deleteEmployee, 
     uploadEmployeeFace,
     requestFaceUpdate,
-    recognizeEmployeeFace
+    recognizeEmployeeFace,
+    getEmployeesByDepartment
 } from '../controllers/employeeController.js';
 
 const router = express.Router();
@@ -26,6 +27,9 @@ router.get('/getAll', getEmployees);
 
 // lấy 1 nhân viên
 router.get('/getByID/:id', getEmployeeByID);
+
+// Lấy danh sách nhân viên theo phòng ban
+router.get('/by-department/:id', getEmployeesByDepartment);
 
 // API Cho Mobile: Upload khuôn mặt
 router.post('/upload-face', uploadEmployeeFace);

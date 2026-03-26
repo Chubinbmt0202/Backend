@@ -21,7 +21,10 @@ export const addDepartment = async (req, res) => {
 
 export const getDepartments = async (req, res) => {
     try {
-        const result = await pool.query('SELECT * FROM PHONG_BAN ORDER BY id_phong_ban ASC');
+        const query = `
+            SELECT * from PHONG_BAN
+        `;
+        const result = await pool.query(query);
         res.status(200).json({ success: true, data: result.rows });
     } catch (error) {
         console.error('Lỗi khi lấy danh sách phòng ban:', error.message);

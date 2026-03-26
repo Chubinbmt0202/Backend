@@ -141,6 +141,57 @@ export const getEmployees = async (req, res) => {
     }
 };
 
+// Lấy danh sách nhân viên theo phòng ban
+export const getEmployeesByDepartment = async (req, res) => {
+    try {
+        const { id } = req.params;
+        if (!id || isNaN(id)) {
+            return res.status(400).json({
+                success: false,
+                message: 'ID phòng ban không hợp lệ.'
+            });
+        }
+
+        const employees = await pool.query(
+            `
+                SELECT
+                    nv.id_nhan_vien,
+                    nv.ho_va_ten AS full_name,
+                    nv.ngay_sinh AS date_of_birth,
+                    nv.so_dien_thoai AS phone_number,
+                    nv.dia_chi AS address,
+                    nv.id_phong_ban AS department_id,
+                    pb.mo_ta AS department_name,
+                    tk.id_tai_khoan,
+                    tk.ten_dang_nhap AS username,
+                    tk.id_vai_tro,
+                    vt.ten_vai_tro AS role_name,
+                    tk.trang_thai,
+                    tk.ngay_tao AS created_at
+                FROM NHAN_VIEN nv
+                LEFT JOIN TAI_KHOAN tk ON tk.id_tai_khoan = nv.id_tai_khoan
+                LEFT JOIN VAI_TRO vt ON vt.id_vai_tro = tk.id_vai_tro
+                LEFT JOIN PHONG_BAN pb ON pb.id_phong_ban = nv.id_phong_ban
+                WHERE nv.id_phong_ban = $1
+                ORDER BY tk.ngay_tao DESC
+            `,
+            [id]
+        );
+
+        res.status(200).json({
+            success: true,
+            message: 'Lấy danh sách nhân viên theo phòng ban thành công',
+            data: employees.rows
+        });
+    } catch (error) {
+        console.error('Lỗi khi lấy danh sách nhân viên theo phòng ban:', error.message);
+        res.status(500).json({
+            success: false,
+            message: 'Lỗi server, vui lòng thử lại sau.'
+        });
+    }
+};
+
 // Lấy 1 nhân viên
 export const getEmployeeByID = async (req, res) => {
     try {
@@ -157,26 +208,24 @@ export const getEmployeeByID = async (req, res) => {
 
         const query = `
             SELECT
-                nv.id AS nhan_vien_id,
-                nv.ma_nhan_vien,
-                nv.ho_ten AS full_name,
+                nv.id_nhan_vien,
+                nv.ho_va_ten AS full_name,
                 nv.ngay_sinh AS date_of_birth,
-                nv.gioi_tinh AS gender,
+                nv.so_dien_thoai AS phone_number,
                 nv.dia_chi AS address,
-                nv.chuc_danh AS title,
-                nv.phong_ban_id AS department_id,
-                nv.ngay_vao_lam AS start_date,
-                nv.khuon_mat_da_cap_nhat AS is_face_updated,
-                tk.id AS tai_khoan_id,
+                nv.id_phong_ban AS department_id,
+                pb.mo_ta AS department_name,
+                tk.id_tai_khoan,
                 tk.ten_dang_nhap AS username,
-                tk.email,
-                tk.so_dien_thoai AS phone_number,
-                tk.vai_tro AS role,
+                tk.id_vai_tro,
+                vt.ten_vai_tro AS role_name,
                 tk.trang_thai,
-                tk.tao_luc AS created_at
-            FROM nhan_vien nv
-            LEFT JOIN tai_khoan tk ON tk.id = nv.tai_khoan_id
-            WHERE nv.id = $1
+                tk.ngay_tao AS created_at
+            FROM NHAN_VIEN nv
+            LEFT JOIN TAI_KHOAN tk ON tk.id_tai_khoan = nv.id_tai_khoan
+            LEFT JOIN VAI_TRO vt ON vt.id_vai_tro = tk.id_vai_tro
+            LEFT JOIN PHONG_BAN pb ON pb.id_phong_ban = nv.id_phong_ban
+            WHERE nv.id_nhan_vien = $1
             LIMIT 1
         `;
 
