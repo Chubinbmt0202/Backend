@@ -14,7 +14,7 @@ const normalizeEmbedding = (raw) => {
     return raw;
 };
 
-// Controller API Thêm nhân viên mới (tai_khoan + nhan_vien)
+// Controller API Thêm nhân viên mới (TAI_KHOAN + NHAN_VIEN)
 export const addEmployee = async (req, res) => {
     console.log("Dữ liệu nhận được:", req.body);
     try {
@@ -22,16 +22,11 @@ export const addEmployee = async (req, res) => {
             username,
             password,
             full_name,
-            role,
-            email,
+            role_id,
             phone_number,
             date_of_birth,
-            gender,
             address,
-            employee_code,
-            title,
-            department_id,
-            start_date
+            department_id
         } = req.body;
 
         // Kiểm tra dữ liệu đầu vào cơ bản
@@ -42,41 +37,36 @@ export const addEmployee = async (req, res) => {
             });
         }
 
-        // Vai trò theo enum trong database.sql
-        const userRole = role || 'nhan_vien';
         const hashedPassword = await bcrypt.hash(password, 10);
-
-        const maNhanVien = employee_code || `NV-${Date.now()}`;
 
         await pool.query('BEGIN');
 
+        // Thêm tài khoản
         const newAccount = await pool.query(
             `
-                INSERT INTO tai_khoan (ten_dang_nhap, email, so_dien_thoai, mat_khau_hash, vai_tro)
-                VALUES ($1, $2, $3, $4, $5)
-                RETURNING id, ten_dang_nhap, email, so_dien_thoai, vai_tro, trang_thai, tao_luc
+                INSERT INTO TAI_KHOAN (ten_dang_nhap, mat_khau, id_vai_tro)
+                VALUES ($1, $2, $3)
+                RETURNING id_tai_khoan, ten_dang_nhap, id_vai_tro, trang_thai, ngay_tao
             `,
-            [username, email || null, phone_number || null, hashedPassword, userRole]
+            [username, hashedPassword, role_id || 3] // Mặc định role_id = 3 (Nhân viên)
         );
 
-        const taiKhoanId = newAccount.rows[0].id;
+        const taiKhoanId = newAccount.rows[0].id_tai_khoan;
 
+        // Thêm nhân viên
         const newEmployee = await pool.query(
             `
-                INSERT INTO nhan_vien (tai_khoan_id, ma_nhan_vien, ho_ten, ngay_sinh, gioi_tinh, dia_chi, chuc_danh, phong_ban_id, ngay_vao_lam)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-                RETURNING id, tai_khoan_id, ma_nhan_vien, ho_ten, ngay_sinh, gioi_tinh, dia_chi, chuc_danh, phong_ban_id, ngay_vao_lam, khuon_mat_da_cap_nhat, tao_luc
+                INSERT INTO NHAN_VIEN (id_tai_khoan, ho_va_ten, ngay_sinh, so_dien_thoai, dia_chi, id_phong_ban)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                RETURNING id_nhan_vien, id_tai_khoan, ho_va_ten, ngay_sinh, so_dien_thoai, dia_chi, id_phong_ban
             `,
             [
                 taiKhoanId,
-                maNhanVien,
                 full_name,
                 date_of_birth || null,
-                gender || null,
+                phone_number || null,
                 address || null,
-                title || null,
-                department_id || null,
-                start_date || null
+                department_id || null
             ]
         );
 
@@ -99,7 +89,7 @@ export const addEmployee = async (req, res) => {
         if (error.code === '23505') {
             return res.status(400).json({
                 success: false,
-                message: 'Dữ liệu bị trùng (username/email/số điện thoại/mã nhân viên).'
+                message: 'Dữ liệu bị trùng (username).'
             });
         }
 
@@ -116,26 +106,24 @@ export const getEmployees = async (req, res) => {
         const employees = await pool.query(
             `
                 SELECT
-                    nv.id AS nhan_vien_id,
-                    nv.ma_nhan_vien,
-                    nv.ho_ten AS full_name,
+                    nv.id_nhan_vien,
+                    nv.ho_va_ten AS full_name,
                     nv.ngay_sinh AS date_of_birth,
-                    nv.gioi_tinh AS gender,
+                    nv.so_dien_thoai AS phone_number,
                     nv.dia_chi AS address,
-                    nv.chuc_danh AS title,
-                    nv.phong_ban_id AS department_id,
-                    nv.ngay_vao_lam AS start_date,
-                    nv.khuon_mat_da_cap_nhat AS is_face_updated,
-                    tk.id AS tai_khoan_id,
+                    nv.id_phong_ban AS department_id,
+                    pb.mo_ta AS department_name,
+                    tk.id_tai_khoan,
                     tk.ten_dang_nhap AS username,
-                    tk.email,
-                    tk.so_dien_thoai AS phone_number,
-                    tk.vai_tro AS role,
+                    tk.id_vai_tro,
+                    vt.ten_vai_tro AS role_name,
                     tk.trang_thai,
-                    tk.tao_luc AS created_at
-                FROM nhan_vien nv
-                LEFT JOIN tai_khoan tk ON tk.id = nv.tai_khoan_id
-                ORDER BY nv.tao_luc DESC
+                    tk.ngay_tao AS created_at
+                FROM NHAN_VIEN nv
+                LEFT JOIN TAI_KHOAN tk ON tk.id_tai_khoan = nv.id_tai_khoan
+                LEFT JOIN VAI_TRO vt ON vt.id_vai_tro = tk.id_vai_tro
+                LEFT JOIN PHONG_BAN pb ON pb.id_phong_ban = nv.id_phong_ban
+                ORDER BY tk.ngay_tao DESC
             `
         );
 

@@ -215,7 +215,8 @@ INSERT INTO QUYEN (ten_quyen, ma_quyen, mo_ta) VALUES
 INSERT INTO VAI_TRO (ten_vai_tro, mo_ta) VALUES
     ('Admin',       'Quản trị viên hệ thống'),
     ('Quản lý',     'Trưởng/phó phòng'),
-    ('Nhân viên',   'Nhân viên thông thường');
+    ('Nhân viên',   'Nhân viên thông thường'),
+    ('Giám đốc',   'Giám đốc công ty');
 
 -- Gán quyền cho vai trò
 INSERT INTO VAI_TRO_QUYEN_HAN (id_vai_tro, id_quyen) VALUES

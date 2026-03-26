@@ -37,15 +37,15 @@ export const getAttendanceStatus = async (req, res) => {
         const query = `
             SELECT 
                 $2::date AS log_date,
-                MIN(cc.thoi_gian) FILTER (WHERE cc.loai = 'vao') AS check_in_time,
-                MAX(cc.thoi_gian) FILTER (WHERE cc.loai = 'ra') AS check_out_time,
+                MIN(cc.thoi_gian) AS check_in_time,
+                NULLIF(MAX(cc.thoi_gian), MIN(cc.thoi_gian)) AS check_out_time,
                 CASE
-                    WHEN MIN(cc.thoi_gian) FILTER (WHERE cc.loai = 'vao') IS NULL THEN 'none'
-                    WHEN MAX(cc.thoi_gian) FILTER (WHERE cc.loai = 'ra') IS NULL THEN 'checked_in'
+                    WHEN MIN(cc.thoi_gian) IS NULL THEN 'none'
+                    WHEN MAX(cc.thoi_gian) = MIN(cc.thoi_gian) THEN 'checked_in'
                     ELSE 'checked_out'
                 END AS status
-            FROM cham_cong cc
-            WHERE cc.nhan_vien_id = $1
+            FROM CHAM_CONG cc
+            WHERE cc.id_nhan_vien = $1
               AND (date(cc.thoi_gian))::date = $2::date
         `;
 
@@ -83,25 +83,24 @@ export const getAllAttendance = async (req, res) => {
 
         const query = `
             SELECT 
-                nv.id AS employee_id,
-                nv.ho_ten AS full_name,
+                nv.id_nhan_vien AS employee_id,
+                nv.ho_va_ten AS full_name,
                 tk.ten_dang_nhap AS username,
                 $1::date AS log_date,
-                MIN(cc.thoi_gian) FILTER (WHERE cc.loai = 'vao') AS check_in_time,
-                MAX(cc.thoi_gian) FILTER (WHERE cc.loai = 'ra') AS check_out_time,
+                MIN(cc.thoi_gian) AS check_in_time,
+                NULLIF(MAX(cc.thoi_gian), MIN(cc.thoi_gian)) AS check_out_time,
                 CASE
-                    WHEN MIN(cc.thoi_gian) FILTER (WHERE cc.loai = 'vao') IS NULL THEN 'none'
-                    WHEN MAX(cc.thoi_gian) FILTER (WHERE cc.loai = 'ra') IS NULL THEN 'checked_in'
+                    WHEN MIN(cc.thoi_gian) IS NULL THEN 'none'
+                    WHEN MAX(cc.thoi_gian) = MIN(cc.thoi_gian) THEN 'checked_in'
                     ELSE 'checked_out'
                 END AS status
-            FROM nhan_vien nv
-            LEFT JOIN tai_khoan tk ON tk.id = nv.tai_khoan_id
-            LEFT JOIN cham_cong cc
-              ON cc.nhan_vien_id = nv.id
+            FROM NHAN_VIEN nv
+            LEFT JOIN TAI_KHOAN tk ON tk.id_tai_khoan = nv.id_tai_khoan
+            LEFT JOIN CHAM_CONG cc
+              ON cc.id_nhan_vien = nv.id_nhan_vien
              AND (date(cc.thoi_gian))::date = $1::date
-            WHERE tk.vai_tro = 'nhan_vien'
-            GROUP BY nv.id, nv.ho_ten, tk.ten_dang_nhap
-            ORDER BY nv.id ASC
+            GROUP BY nv.id_nhan_vien, nv.ho_va_ten, tk.ten_dang_nhap
+            ORDER BY nv.id_nhan_vien ASC
         `;
 
         const result = await pool.query(query, [queryDate]);
@@ -143,11 +142,10 @@ export const verifyAttendanceFace = async (req, res) => {
         // 1. Lấy dữ liệu khuôn mặt đã lưu trong DB
         const userQuery = `
             SELECT
-                nv.id,
-                nv.du_lieu_khuon_mat,
-                nv.khuon_mat_da_cap_nhat
-            FROM nhan_vien nv
-            WHERE nv.id = $1 OR nv.tai_khoan_id = $1
+                nv.id_nhan_vien,
+                nv.du_lieu_khuon_mat
+            FROM NHAN_VIEN nv
+            WHERE nv.id_nhan_vien = $1 OR nv.id_tai_khoan = $1
             LIMIT 1
         `;
         const userResult = await pool.query(userQuery, [userId]);
@@ -226,15 +224,15 @@ export const getEmployeeAttendanceHistory = async (req, res) => {
             SELECT 
                 (date(cc.thoi_gian))::date AS log_date,
                 TO_CHAR((date(cc.thoi_gian))::date, 'TMDay') AS day_of_week,
-                MIN(cc.thoi_gian) FILTER (WHERE cc.loai = 'vao') AS check_in_time,
-                MAX(cc.thoi_gian) FILTER (WHERE cc.loai = 'ra') AS check_out_time,
+                MIN(cc.thoi_gian) AS check_in_time,
+                NULLIF(MAX(cc.thoi_gian), MIN(cc.thoi_gian)) AS check_out_time,
                 CASE
-                    WHEN MIN(cc.thoi_gian) FILTER (WHERE cc.loai = 'vao') IS NULL THEN 'none'
-                    WHEN MAX(cc.thoi_gian) FILTER (WHERE cc.loai = 'ra') IS NULL THEN 'checked_in'
+                    WHEN MIN(cc.thoi_gian) IS NULL THEN 'none'
+                    WHEN MAX(cc.thoi_gian) = MIN(cc.thoi_gian) THEN 'checked_in'
                     ELSE 'checked_out'
                 END AS status
-            FROM cham_cong cc
-            WHERE cc.nhan_vien_id = $1
+            FROM CHAM_CONG cc
+            WHERE cc.id_nhan_vien = $1
             GROUP BY (date(cc.thoi_gian))::date
             ORDER BY log_date DESC
         `;

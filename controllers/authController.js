@@ -16,16 +16,17 @@ export const login = async (req, res) => {
     const userResult = await pool.query(
       `
         SELECT
-          tk.id,
+          tk.id_tai_khoan,
           tk.ten_dang_nhap,
-          tk.mat_khau_hash,
-          tk.vai_tro,
+          tk.mat_khau,
+          tk.id_vai_tro,
+          vt.ten_vai_tro,
           tk.trang_thai,
-          nv.id AS nhan_vien_id,
-          nv.ho_ten,
-          nv.khuon_mat_da_cap_nhat
-        FROM tai_khoan tk
-        LEFT JOIN nhan_vien nv ON nv.tai_khoan_id = tk.id
+          nv.id_nhan_vien,
+          nv.ho_va_ten
+        FROM TAI_KHOAN tk
+        LEFT JOIN VAI_TRO vt ON vt.id_vai_tro = tk.id_vai_tro
+        LEFT JOIN NHAN_VIEN nv ON nv.id_tai_khoan = tk.id_tai_khoan
         WHERE tk.ten_dang_nhap = $1
         LIMIT 1
       `,
@@ -41,13 +42,32 @@ export const login = async (req, res) => {
       });
     }
 
-    if (userResult.rows.length != 0) {
-      res.status(200).json({
-        success: true,
-        message: "Đăng nhập thành công",
-        data: userResult.rows[0],
+    const user = userResult.rows[0];
+
+    if (!user.trang_thai) {
+      return res.status(403).json({
+        success: false,
+        message: "Tài khoản của bạn đã bị khóa.",
       });
     }
+
+    // Lưu session
+    req.session.userId = user.id_tai_khoan;
+    req.session.roleId = user.id_vai_tro;
+    req.session.roleName = user.ten_vai_tro;
+
+    res.status(200).json({
+      success: true,
+      message: "Đăng nhập thành công",
+      data: {
+        id_tai_khoan: user.id_tai_khoan,
+        ten_dang_nhap: user.ten_dang_nhap,
+        id_vai_tro: user.id_vai_tro,
+        ten_vai_tro: user.ten_vai_tro,
+        id_nhan_vien: user.id_nhan_vien,
+        ho_va_ten: user.ho_va_ten
+      },
+    });
 
   } catch (error) {
     console.error("Lỗi khi đăng nhập:", error.message);

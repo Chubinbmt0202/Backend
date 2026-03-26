@@ -9,6 +9,8 @@ import employeeRoutes from './routes/employeeRoutes.js'; // Import route nhân v
 import authRoutes from './routes/authRoutes.js'; // Import route authentication
 import attendanceRoutes from './routes/attendanceRoutes.js'; // Import route chấm công
 import shiftRoutes from './routes/shiftRoutes.js'; // Import route ca
+import roleRoutes from './routes/roleRoutes.js'; // Import route vai trò
+import departmentRoutes from './routes/departmentRoutes.js'; // Import route phòng ban
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -47,6 +49,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/shifts', shiftRoutes);
+app.use('/api/roles', roleRoutes);
+app.use('/api/departments', departmentRoutes);
 
 // Lắng nghe ở cổng (port) đã định
 app.listen(port, () => {
