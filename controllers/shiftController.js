@@ -3,52 +3,108 @@ import pool from '../config/db.js';
 export const addShift = async (req, res) => {
     try {
         console.log("Dữ liệu nhận được: ", req.body)
-        const { shift_name, start_time, end_time } = req.body;
+        const { shift_name, start_time, end_time, late_tolerance_mins, coefficient, has_lunch_break, lunch_start_time, lunch_end_time } = req.body;
 
-        const query = 'INSERT INTO shifts (shift_name, start_time, end_time) VALUES ($1, $2, $3) RETURNING *';
-        const values = [shift_name, start_time, end_time];
+        if (!shift_name || !start_time || !end_time) {
+            return res.status(400).json({ success: false, message: 'Vui lòng cung cấp đầy đủ tên ca, giờ vào, giờ ra' });
+        }
+
+        const query = `
+            INSERT INTO CA_LAM_VIEC (ten_ca, gio_vao, gio_ra, phut_cho_phep_tre, so_cong, nghi_trua, bat_dau_nghi, ket_thuc_nghi) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+            RETURNING 
+                id_ca_lam AS id, 
+                ten_ca AS shift_name, 
+                gio_vao AS start_time, 
+                gio_ra AS end_time,
+                phut_cho_phep_tre AS late_tolerance_mins,
+                so_cong AS coefficient,
+                nghi_trua AS has_lunch_break,
+                bat_dau_nghi AS lunch_start_time,
+                ket_thuc_nghi AS lunch_end_time
+        `;
+        const values = [
+            shift_name, 
+            start_time, 
+            end_time, 
+            late_tolerance_mins || 0,
+            coefficient || 1.0,
+            has_lunch_break !== undefined ? has_lunch_break : true,
+            lunch_start_time || null,
+            lunch_end_time || null
+        ];
 
         const result = await pool.query(query, values);
         console.log("Kết quả là: ", result.rows)
-        res.status(201).json(result.rows[0]);
+        res.status(201).json({ success: true, message: "Thêm ca làm thành công", data: result.rows[0] });
     } catch (error) {
-        console.error('Error adding shift:', error);
-        res.status(500).json({ error: 'Failed to add shift' });
+        console.error('Error adding shift:', error.message);
+        res.status(500).json({ success: false, message: 'Lỗi server khi thêm ca làm' });
     }
 }
 
 export const getAllShifts = async (req, res) => {
     try {
-        const query = 'SELECT * FROM shifts';
+        const query = `
+            SELECT 
+                id_ca_lam AS id, 
+                ten_ca AS shift_name, 
+                gio_vao AS start_time, 
+                gio_ra AS end_time,
+                phut_cho_phep_tre AS late_tolerance_mins,
+                so_cong AS coefficient,
+                nghi_trua AS has_lunch_break,
+                bat_dau_nghi AS lunch_start_time,
+                ket_thuc_nghi AS lunch_end_time
+            FROM CA_LAM_VIEC
+            ORDER BY id_ca_lam ASC
+        `;
         const result = await pool.query(query);
         console.log("Kết quả là: ", result.rows)
-        res.status(200).json(result.rows);
+        res.status(200).json({ success: true, message: "Lấy danh sách ca làm thành công", data: result.rows });
     } catch (error) {
-        console.error('Error getting all shifts:', error);
-        res.status(500).json({ error: 'Failed to get all shifts' });
+        console.error('Error getting all shifts:', error.message);
+        res.status(500).json({ success: false, message: 'Lỗi server khi lấy danh sách ca làm' });
     }
 }
 
 export const updateShift = async (req, res) => {
     try {
-        // Lấy ID từ URL (VD: /api/shift/1)
         const { id } = req.params;
-        const { shift_name, start_time, end_time, late_tolerance_mins } = req.body;
+        const { shift_name, start_time, end_time, late_tolerance_mins, coefficient, has_lunch_break, lunch_start_time, lunch_end_time } = req.body;
 
         console.log(`Đang cập nhật ca làm ID: ${id}`, req.body);
 
-        // Mình thêm cột late_tolerance_mins vào luôn để hệ thống của bạn xịn hơn nhé
         const query = `
-            UPDATE shifts 
-            SET shift_name = $1, start_time = $2, end_time = $3, late_tolerance_mins = $4
-            WHERE id = $5 
-            RETURNING *;
+            UPDATE CA_LAM_VIEC 
+            SET ten_ca = $1, gio_vao = $2, gio_ra = $3, phut_cho_phep_tre = $4,
+                so_cong = $5, nghi_trua = $6, bat_dau_nghi = $7, ket_thuc_nghi = $8
+            WHERE id_ca_lam = $9 
+            RETURNING 
+                id_ca_lam AS id, 
+                ten_ca AS shift_name, 
+                gio_vao AS start_time, 
+                gio_ra AS end_time,
+                phut_cho_phep_tre AS late_tolerance_mins,
+                so_cong AS coefficient,
+                nghi_trua AS has_lunch_break,
+                bat_dau_nghi AS lunch_start_time,
+                ket_thuc_nghi AS lunch_end_time
         `;
-        const values = [shift_name, start_time, end_time, late_tolerance_mins || 0, id];
+        const values = [
+            shift_name, 
+            start_time, 
+            end_time, 
+            late_tolerance_mins || 0,
+            coefficient || 1.0,
+            has_lunch_break !== undefined ? has_lunch_break : true,
+            lunch_start_time || null,
+            lunch_end_time || null,
+            id
+        ];
 
         const result = await pool.query(query, values);
 
-        // Kiểm tra xem ID đó có tồn tại trong DB không
         if (result.rowCount === 0) {
             return res.status(404).json({ success: false, message: "Không tìm thấy ca làm việc này!" });
         }
@@ -57,16 +113,17 @@ export const updateShift = async (req, res) => {
         res.status(200).json({ success: true, message: "Cập nhật thành công", data: result.rows[0] });
 
     } catch (error) {
-        console.error('Lỗi khi cập nhật ca làm:', error);
-        res.status(500).json({ success: false, error: 'Lỗi server khi cập nhật ca làm' });
+        console.error('Lỗi khi cập nhật ca làm:', error.message);
+        res.status(500).json({ success: false, message: 'Lỗi server khi cập nhật ca làm' });
     }
 };
+
 export const deleteShift = async (req, res) => {
     try {
         const { id } = req.params;
         console.log(`Đang xóa ca làm ID: ${id}`);
 
-        const query = 'DELETE FROM shifts WHERE id = $1 RETURNING *';
+        const query = 'DELETE FROM CA_LAM_VIEC WHERE id_ca_lam = $1 RETURNING *';
         const result = await pool.query(query, [id]);
 
         if (result.rowCount === 0) {
@@ -74,10 +131,10 @@ export const deleteShift = async (req, res) => {
         }
 
         console.log("Đã xóa ca làm: ", result.rows[0]);
-        res.status(200).json({ success: true, message: "Xóa ca làm thành công", data: result.rows[0] });
+        res.status(200).json({ success: true, message: "Xóa ca làm thành công", data: { id: id } });
 
     } catch (error) {
-        console.error('Lỗi khi xóa ca làm:', error);
-        res.status(500).json({ success: false, error: 'Lỗi server khi xóa ca làm. Có thể ca này đang được gắn cho nhân viên!' });
+        console.error('Lỗi khi xóa ca làm:', error.message);
+        res.status(500).json({ success: false, message: 'Lỗi server khi xóa ca làm. Có thể ca này đang được gắn cho nhân viên!' });
     }
 };
