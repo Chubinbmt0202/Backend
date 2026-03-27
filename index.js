@@ -11,6 +11,8 @@ import attendanceRoutes from './routes/attendanceRoutes.js'; // Import route ch�
 import shiftRoutes from './routes/shiftRoutes.js'; // Import route ca
 import roleRoutes from './routes/roleRoutes.js'; // Import route vai trò
 import departmentRoutes from './routes/departmentRoutes.js'; // Import route phòng ban
+import uploadRoutes from './routes/uploadRoutes.js'; // Import route upload ảnh Supabase
+import officeRoutes from './routes/officeRoutes.js'; // Import route văn phòng và GPS
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -51,8 +53,10 @@ app.use('/api/attendance', attendanceRoutes);
 app.use('/api/shifts', shiftRoutes);
 app.use('/api/roles', roleRoutes);
 app.use('/api/departments', departmentRoutes);
+app.use('/api/upload', uploadRoutes); // Route upload file lên Supabase
+app.use('/api/offices', officeRoutes); // Route quản lý văn phòng và định vị GPS
 
 // Lắng nghe ở cổng (port) đã định
 app.listen(port, () => {
-  console.log(`Server đang chạy tại http://172.16.96.33:${port}`);
+  console.log(`Server đang chạy tại http://localhost:${port}`);
 });
