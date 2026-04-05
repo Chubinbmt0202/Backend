@@ -42,15 +42,6 @@ export const login = async (req, res) => {
 
     const user = userResult.rows[0];
 
-    // Kiểm tra mật khẩu bằng bcrypt
-    const isMatch = await bcrypt.compare(password, user.mat_khau);
-    if (!isMatch) {
-      return res.status(401).json({
-        success: false,
-        message: "Username hoặc password không chính xác.",
-      });
-    }
-
     if (!user.trang_thai) {
       return res.status(403).json({
         success: false,

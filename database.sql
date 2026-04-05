@@ -11,6 +11,7 @@ DROP TABLE IF EXISTS LOAI_PHEP CASCADE;
 DROP TABLE IF EXISTS PHONG_BAN CASCADE;
 DROP TABLE IF EXISTS CA_LAM_VIEC CASCADE;
 DROP TABLE IF EXISTS DIEM_CHAM_CONG CASCADE;
+DROP TABLE IF EXISTS WIFI_VAN_PHONG CASCADE;
 DROP TABLE IF EXISTS VAN_PHONG CASCADE;
 
 -- ========================================================
@@ -103,9 +104,7 @@ CREATE TABLE VAN_PHONG (
     dia_chi VARCHAR(255),
     kinh_do DECIMAL,
     vi_do DECIMAL,
-    pham_vi NUMERIC,
-    ten_wifi VARCHAR(255),
-    dia_chi_wifi VARCHAR(255)
+    pham_vi NUMERIC
 );
 
 CREATE TABLE DIEM_CHAM_CONG (
@@ -130,6 +129,14 @@ CREATE TABLE CHAM_CONG (
     anh_url VARCHAR(255),
     ghi_chu VARCHAR(255)
 );
+
+CREATE TABLE WIFI_VAN_PHONG (
+    id_wifi VARCHAR(8) PRIMARY KEY,
+    ten_wifi VARCHAR(255),
+    dia_chi_mac VARCHAR(255),
+    id_van_phong VARCHAR(8)
+);
+
 
 -- ========================================================
 -- 2. THIẾT LẬP CÁC KHÓA NGOẠI (FOREIGN KEYS)
@@ -162,6 +169,10 @@ ALTER TABLE DON_XIN_NGHI
 -- Liên kết DIEM_CHAM_CONG -> VAN_PHONG
 ALTER TABLE DIEM_CHAM_CONG 
     ADD CONSTRAINT fk_dcc_vanphong FOREIGN KEY (id_van_phong) REFERENCES VAN_PHONG(id_van_phong);
+
+-- Liên kết WIFI_VAN_PHONG -> VAN_PHONG
+ALTER TABLE WIFI_VAN_PHONG 
+    ADD CONSTRAINT fk_wvp_vanphong FOREIGN KEY (id_van_phong) REFERENCES VAN_PHONG(id_van_phong) ON DELETE CASCADE;
 
 -- Liên kết CHAM_CONG
 ALTER TABLE CHAM_CONG 
@@ -220,8 +231,12 @@ INSERT INTO CA_LAM_VIEC (id_ca_lam, ten_ca, gio_vao, gio_ra, phut_cho_phep_tre, 
 ('CA002', 'Ca Sáng', '2000-01-01 08:00:00', '2000-01-01 12:00:00', 15, 0.5, FALSE, NULL, NULL),
 ('CA003', 'Ca Chiều', '2000-01-01 13:00:00', '2000-01-01 17:00:00', 15, 0.5, FALSE, NULL, NULL);
 
-INSERT INTO VAN_PHONG (id_van_phong, ten, dia_chi, kinh_do, vi_do, pham_vi, ten_wifi, dia_chi_wifi) VALUES
-('VP001', 'Trụ sở chính', 'Quận 1, TP HCM', 106.6953, 10.7766, 50, 'Office_Wifi', '00:11:22:33:44:55');
+INSERT INTO VAN_PHONG (id_van_phong, ten, dia_chi, kinh_do, vi_do, pham_vi) VALUES
+('VP001', 'Trụ sở chính', 'Quận 1, TP HCM', 106.6953, 10.7766, 50);
+
+INSERT INTO WIFI_VAN_PHONG (id_wifi, ten_wifi, dia_chi_mac, id_van_phong) VALUES
+('WF000001', 'Office_Wifi_T1', '00:11:22:33:44:55', 'VP001'),
+('WF000002', 'Office_Wifi_T2', '66:77:88:99:AA:BB', 'VP001');
 
 INSERT INTO DIEM_CHAM_CONG (id_diem_cham_cong, vi_do, kinh_do, ssid, bssid, id_van_phong) VALUES
 ('DCC001', 10.7766, 106.6953, 'Office_Wifi', '00:11:22:33:44:55', 'VP001');
