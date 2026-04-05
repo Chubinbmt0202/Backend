@@ -15,23 +15,19 @@ const normalizeEmbedding = (raw) => {
 
 /**
  * Controller API Lấy trạng thái chấm công của nhân viên trong ngày
- * @param {Object} req - Request object
- * @param {Object} res - Response object
  */
 export const getAttendanceStatus = async (req, res) => {
     try {
         const { userId } = req.params;
-        const { date } = req.query; // Nhận ngày từ query parameter, định dạng YYYY-MM-DD
+        const { date } = req.query;
 
-        // Kiểm tra userId hợp lệ
-        if (!userId || isNaN(userId)) {
+        if (!userId) {
             return res.status(400).json({
                 success: false,
                 message: 'ID người dùng không hợp lệ.'
             });
         }
 
-        // Nếu không truyền date, lấy ngày hiện tại (theo múi giờ server/local)
         const queryDate = date || new Date().toISOString().split('T')[0];
 
         const query = `
@@ -73,8 +69,6 @@ export const getAttendanceStatus = async (req, res) => {
 
 /**
  * Controller API Lấy danh sách chấm công của tất cả nhân viên trong ngày
- * @param {Object} req - Request object
- * @param {Object} res - Response object
  */
 export const getAllAttendance = async (req, res) => {
     try {
@@ -121,12 +115,8 @@ export const getAllAttendance = async (req, res) => {
     }
 };
 
-// euclideanDistance removed as it's now in faceUtils.js
-
 /**
  * Controller API Xác thực khuôn mặt để chấm công
- * @param {Object} req - Request object
- * @param {Object} res - Response object
  */
 export const verifyAttendanceFace = async (req, res) => {
     try {
@@ -139,13 +129,12 @@ export const verifyAttendanceFace = async (req, res) => {
             });
         }
 
-        // 1. Lấy dữ liệu khuôn mặt đã lưu trong DB
         const userQuery = `
             SELECT
                 nv.id_nhan_vien,
                 nv.du_lieu_khuon_mat
             FROM NHAN_VIEN nv
-            WHERE nv.id_nhan_vien = $1 OR nv.id_tai_khoan = $1
+            WHERE (nv.id_nhan_vien = $1 OR nv.id_tai_khoan = $1) AND nv.du_lieu_khuon_mat IS NOT NULL
             LIMIT 1
         `;
         const userResult = await pool.query(userQuery, [userId]);
@@ -153,26 +142,14 @@ export const verifyAttendanceFace = async (req, res) => {
         if (userResult.rowCount === 0) {
             return res.status(404).json({
                 success: false,
-                message: 'Không tìm thấy người dùng.'
+                message: 'Không tìm thấy người dùng hoặc người dùng chưa đăng ký khuôn mặt.'
             });
         }
 
         const storedData = userResult.rows[0];
-
-        if (!storedData.khuon_mat_da_cap_nhat || !storedData.du_lieu_khuon_mat) {
-            return res.status(400).json({
-                success: false,
-                message: 'Người dùng này chưa cập nhật dữ liệu khuôn mặt.'
-            });
-        }
-
-        // 2. So sánh embedding gửi lên với 3 góc đã lưu
         const match = findBestMatch(embedding, normalizeEmbedding(storedData.du_lieu_khuon_mat));
 
         const similarity = match.bestSimilarity;
-        const distance = match.bestDistance;
-
-        // Ngưỡng yêu cầu từ người dùng: > 80%
         const minSimilarity = 80;
         const isMatch = similarity >= minSimilarity;
 
@@ -181,7 +158,7 @@ export const verifyAttendanceFace = async (req, res) => {
                 success: true,
                 message: 'Xác thực khuôn mặt thành công.',
                 similarity: similarity.toFixed(2) + '%',
-                distance: distance.toFixed(4),
+                distance: match.bestDistance.toFixed(4),
                 isMatch: true
             });
         } else {
@@ -189,7 +166,7 @@ export const verifyAttendanceFace = async (req, res) => {
                 success: false,
                 message: `Xác thực khuôn mặt thất bại. Độ tương đồng (${similarity.toFixed(2)}%) thấp hơn yêu cầu (${minSimilarity}%).`,
                 similarity: similarity.toFixed(2) + '%',
-                distance: distance.toFixed(4),
+                distance: match.bestDistance.toFixed(4),
                 isMatch: false
             });
         }
@@ -205,15 +182,12 @@ export const verifyAttendanceFace = async (req, res) => {
 
 /**
  * Controller API Lấy lịch sử chấm công của 1 nhân viên
- * @param {Object} req - Request object
- * @param {Object} res - Response object
  */
 export const getEmployeeAttendanceHistory = async (req, res) => {
     try {
         const { userId } = req.params;
 
-        // Kiểm tra userId hợp lệ
-        if (!userId || isNaN(userId)) {
+        if (!userId) {
             return res.status(400).json({
                 success: false,
                 message: 'ID người dùng không hợp lệ.'
@@ -239,16 +213,11 @@ export const getEmployeeAttendanceHistory = async (req, res) => {
 
         const result = await pool.query(query, [userId]);
 
-        const formattedData = result.rows.map(row => ({
-            ...row,
-            // log_date: row.log_date.toISOString().split('T')[0] 
-        }));
-
         res.status(200).json({
             success: true,
             message: 'Lấy lịch sử chấm công thành công.',
             total: result.rowCount,
-            data: formattedData
+            data: result.rows
         });
 
     } catch (error) {
@@ -259,5 +228,3 @@ export const getEmployeeAttendanceHistory = async (req, res) => {
         });
     }
 };
-
-/// API CHẤM CÔng NHÂN VIÊN

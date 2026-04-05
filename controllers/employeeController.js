@@ -1,6 +1,7 @@
 import pool from '../config/db.js';
 import bcrypt from 'bcrypt';
 import { findBestMatch } from '../utils/faceUtils.js';
+import { generateId } from '../utils/idGenerator.js';
 
 const normalizeEmbedding = (raw) => {
     if (raw == null) return raw;
@@ -38,34 +39,35 @@ export const addEmployee = async (req, res) => {
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
+        const id_tai_khoan = generateId('TK');
+        const id_nhan_vien = generateId('NV');
 
         await pool.query('BEGIN');
 
         // Thêm tài khoản
         const newAccount = await pool.query(
             `
-                INSERT INTO TAI_KHOAN (ten_dang_nhap, mat_khau, id_vai_tro)
-                VALUES ($1, $2, $3)
+                INSERT INTO TAI_KHOAN (id_tai_khoan, ten_dang_nhap, mat_khau, id_vai_tro, trang_thai, ngay_tao)
+                VALUES ($1, $2, $3, $4, TRUE, CURRENT_TIMESTAMP)
                 RETURNING id_tai_khoan, ten_dang_nhap, id_vai_tro, trang_thai, ngay_tao
             `,
-            [username, hashedPassword, role_id || 3] // Mặc định role_id = 3 (Nhân viên)
+            [id_tai_khoan, username, hashedPassword, role_id || 'VT003'] // Mặc định role_id = VT003 (Nhân viên)
         );
-
-        const taiKhoanId = newAccount.rows[0].id_tai_khoan;
 
         // Thêm nhân viên
         const newEmployee = await pool.query(
             `
-                INSERT INTO NHAN_VIEN (id_tai_khoan, ho_va_ten, ngay_sinh, so_dien_thoai, dia_chi, id_phong_ban)
-                VALUES ($1, $2, $3, $4, $5, $6)
+                INSERT INTO NHAN_VIEN (id_nhan_vien, ho_va_ten, ngay_sinh, so_dien_thoai, dia_chi, id_tai_khoan, id_phong_ban)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
                 RETURNING id_nhan_vien, id_tai_khoan, ho_va_ten, ngay_sinh, so_dien_thoai, dia_chi, id_phong_ban
             `,
             [
-                taiKhoanId,
+                id_nhan_vien,
                 full_name,
                 date_of_birth || null,
                 phone_number || null,
                 address || null,
+                id_tai_khoan,
                 department_id || null
             ]
         );
@@ -145,7 +147,8 @@ export const getEmployees = async (req, res) => {
 export const getEmployeesByDepartment = async (req, res) => {
     try {
         const { id } = req.params;
-        if (!id || isNaN(id)) {
+        console.log("ID phòng ban: ", id)
+        if (!id) {
             return res.status(400).json({
                 success: false,
                 message: 'ID phòng ban không hợp lệ.'
@@ -199,7 +202,7 @@ export const getEmployeeByID = async (req, res) => {
         console.log("ID nhân viên: ", id)
 
         // Kiểm tra id có hợp lệ không
-        if (!id || isNaN(id)) {
+        if (!id) {
             return res.status(400).json({
                 success: false,
                 message: 'ID nhân viên không hợp lệ.'
@@ -295,9 +298,9 @@ export const updateEmployee = async (req, res) => {
             });
         }
 
-        // Lấy tai_khoan_id để update cả 2 bảng
+        // Lấy id_tai_khoan để update cả 2 bảng
         const existing = await pool.query(
-            `SELECT tai_khoan_id FROM nhan_vien WHERE id = $1 LIMIT 1`,
+            `SELECT id_tai_khoan FROM NHAN_VIEN WHERE id_nhan_vien = $1 LIMIT 1`,
             [id]
         );
         if (existing.rowCount === 0) {
@@ -307,51 +310,45 @@ export const updateEmployee = async (req, res) => {
             });
         }
 
-        const taiKhoanId = existing.rows[0].tai_khoan_id;
+        const id_tai_khoan = existing.rows[0].id_tai_khoan;
 
         await pool.query('BEGIN');
 
-        // Update nhan_vien
+        // Update NHAN_VIEN
         const nvFields = [];
         const nvValues = [];
         let nvIdx = 1;
 
-        if (full_name) { nvFields.push(`ho_ten = $${nvIdx++}`); nvValues.push(full_name); }
+        if (full_name) { nvFields.push(`ho_va_ten = $${nvIdx++}`); nvValues.push(full_name); }
         if (date_of_birth) { nvFields.push(`ngay_sinh = $${nvIdx++}`); nvValues.push(date_of_birth); }
-        if (gender) { nvFields.push(`gioi_tinh = $${nvIdx++}`); nvValues.push(gender); }
         if (address) { nvFields.push(`dia_chi = $${nvIdx++}`); nvValues.push(address); }
-        if (title) { nvFields.push(`chuc_danh = $${nvIdx++}`); nvValues.push(title); }
-        if (department_id) { nvFields.push(`phong_ban_id = $${nvIdx++}`); nvValues.push(department_id); }
-        if (start_date) { nvFields.push(`ngay_vao_lam = $${nvIdx++}`); nvValues.push(start_date); }
-        if (employee_code) { nvFields.push(`ma_nhan_vien = $${nvIdx++}`); nvValues.push(employee_code); }
+        if (department_id) { nvFields.push(`id_phong_ban = $${nvIdx++}`); nvValues.push(department_id); }
 
         if (nvFields.length > 0) {
             nvValues.push(id);
             await pool.query(
-                `UPDATE nhan_vien SET ${nvFields.join(', ')}, cap_nhat_luc = now() WHERE id = $${nvIdx}`,
+                `UPDATE NHAN_VIEN SET ${nvFields.join(', ')} WHERE id_nhan_vien = $${nvIdx}`,
                 nvValues
             );
         }
 
-        // Update tai_khoan
+        // Update TAI_KHOAN
         const tkFields = [];
         const tkValues = [];
         let tkIdx = 1;
 
-        if (role) { tkFields.push(`vai_tro = $${tkIdx++}`); tkValues.push(role); }
-        if (email) { tkFields.push(`email = $${tkIdx++}`); tkValues.push(email); }
-        if (phone_number) { tkFields.push(`so_dien_thoai = $${tkIdx++}`); tkValues.push(phone_number); }
-        if (status) { tkFields.push(`trang_thai = $${tkIdx++}`); tkValues.push(status); }
+        if (role) { tkFields.push(`id_vai_tro = $${tkIdx++}`); tkValues.push(role); }
+        if (status !== undefined) { tkFields.push(`trang_thai = $${tkIdx++}`); tkValues.push(status); }
         if (password) {
             const hashedPassword = await bcrypt.hash(password, 10);
-            tkFields.push(`mat_khau_hash = $${tkIdx++}`);
+            tkFields.push(`mat_khau = $${tkIdx++}`);
             tkValues.push(hashedPassword);
         }
 
-        if (tkFields.length > 0 && taiKhoanId) {
-            tkValues.push(taiKhoanId);
+        if (tkFields.length > 0 && id_tai_khoan) {
+            tkValues.push(id_tai_khoan);
             await pool.query(
-                `UPDATE tai_khoan SET ${tkFields.join(', ')}, cap_nhat_luc = now() WHERE id = $${tkIdx}`,
+                `UPDATE TAI_KHOAN SET ${tkFields.join(', ')} WHERE id_tai_khoan = $${tkIdx}`,
                 tkValues
             );
         }
@@ -362,26 +359,23 @@ export const updateEmployee = async (req, res) => {
         const updated = await pool.query(
             `
                 SELECT
-                    nv.id AS nhan_vien_id,
-                    nv.ma_nhan_vien,
-                    nv.ho_ten AS full_name,
+                    nv.id_nhan_vien,
+                    nv.ho_va_ten AS full_name,
                     nv.ngay_sinh AS date_of_birth,
-                    nv.gioi_tinh AS gender,
                     nv.dia_chi AS address,
-                    nv.chuc_danh AS title,
-                    nv.phong_ban_id AS department_id,
-                    nv.ngay_vao_lam AS start_date,
-                    nv.khuon_mat_da_cap_nhat AS is_face_updated,
-                    tk.id AS tai_khoan_id,
+                    nv.id_phong_ban AS department_id,
+                    pb.mo_ta AS department_name,
+                    tk.id_tai_khoan,
                     tk.ten_dang_nhap AS username,
-                    tk.email,
-                    tk.so_dien_thoai AS phone_number,
-                    tk.vai_tro AS role,
+                    tk.id_vai_tro,
+                    vt.ten_vai_tro AS role_name,
                     tk.trang_thai,
-                    tk.tao_luc AS created_at
-                FROM nhan_vien nv
-                LEFT JOIN tai_khoan tk ON tk.id = nv.tai_khoan_id
-                WHERE nv.id = $1
+                    tk.ngay_tao AS created_at
+                FROM NHAN_VIEN nv
+                LEFT JOIN TAI_KHOAN tk ON tk.id_tai_khoan = nv.id_tai_khoan
+                LEFT JOIN VAI_TRO vt ON vt.id_vai_tro = tk.id_vai_tro
+                LEFT JOIN PHONG_BAN pb ON pb.id_phong_ban = nv.id_phong_ban
+                WHERE nv.id_nhan_vien = $1
                 LIMIT 1
             `,
             [id]
@@ -417,7 +411,7 @@ export const deleteEmployee = async (req, res) => {
         }
 
         const existing = await pool.query(
-            `SELECT id, tai_khoan_id, ho_ten FROM nhan_vien WHERE id = $1 LIMIT 1`,
+            `SELECT id_nhan_vien, id_tai_khoan, ho_va_ten FROM NHAN_VIEN WHERE id_nhan_vien = $1 LIMIT 1`,
             [id]
         );
 
@@ -428,19 +422,19 @@ export const deleteEmployee = async (req, res) => {
             });
         }
 
-        const taiKhoanId = existing.rows[0].tai_khoan_id;
+        const id_tai_khoan = existing.rows[0].id_tai_khoan;
 
         await pool.query('BEGIN');
-        await pool.query(`DELETE FROM nhan_vien WHERE id = $1`, [id]);
-        if (taiKhoanId) {
-            await pool.query(`DELETE FROM tai_khoan WHERE id = $1`, [taiKhoanId]);
+        await pool.query(`DELETE FROM NHAN_VIEN WHERE id_nhan_vien = $1`, [id]);
+        if (id_tai_khoan) {
+            await pool.query(`DELETE FROM TAI_KHOAN WHERE id_tai_khoan = $1`, [id_tai_khoan]);
         }
         await pool.query('COMMIT');
 
         res.status(200).json({
             success: true,
             message: 'Xoá nhân viên thành công!',
-            data: { nhan_vien_id: Number(id), tai_khoan_id: taiKhoanId }
+            data: { id_nhan_vien: id, id_tai_khoan: id_tai_khoan }
         });
 
     } catch (error) {
@@ -489,12 +483,10 @@ export const uploadEmployeeFace = async (req, res) => {
         const embeddingJSON = JSON.stringify(embedding);
 
         const updateQuery = `
-            UPDATE nhan_vien
-            SET du_lieu_khuon_mat = $1::jsonb,
-                khuon_mat_da_cap_nhat = true,
-                cap_nhat_luc = now()
-            WHERE id = $2
-            RETURNING id, ma_nhan_vien, ho_ten, khuon_mat_da_cap_nhat;
+            UPDATE NHAN_VIEN
+            SET du_lieu_khuon_mat = $1::jsonb
+            WHERE id_nhan_vien = $2
+            RETURNING id_nhan_vien, ho_va_ten;
         `;
 
         // Chạy query (Sử dụng pool từ db.js của bạn)
@@ -530,12 +522,10 @@ export const requestFaceUpdate = async (req, res) => {
         }
 
         const updateQuery = `
-            UPDATE nhan_vien
-            SET du_lieu_khuon_mat = NULL,
-                khuon_mat_da_cap_nhat = false,
-                cap_nhat_luc = now()
-            WHERE id = $1
-            RETURNING id, ma_nhan_vien, ho_ten, khuon_mat_da_cap_nhat;
+            UPDATE NHAN_VIEN
+            SET du_lieu_khuon_mat = NULL
+            WHERE id_nhan_vien = $1
+            RETURNING id_nhan_vien, ho_va_ten;
         `;
 
         const result = await pool.query(updateQuery, [id]);
@@ -582,15 +572,15 @@ export const recognizeEmployeeFace = async (req, res) => {
         // 1. Lấy thông tin nhân viên theo userId
         const query = `
             SELECT
-                nv.id,
+                nv.id_nhan_vien,
                 tk.ten_dang_nhap AS username,
-                nv.ho_ten AS full_name,
-                tk.vai_tro AS role,
-                nv.du_lieu_khuon_mat,
-                nv.khuon_mat_da_cap_nhat
-            FROM nhan_vien nv
-            LEFT JOIN tai_khoan tk ON tk.id = nv.tai_khoan_id
-            WHERE (nv.id = $1 OR nv.tai_khoan_id = $1) AND nv.khuon_mat_da_cap_nhat = true
+                nv.ho_va_ten AS full_name,
+                vt.ten_vai_tro AS role,
+                nv.du_lieu_khuon_mat
+            FROM NHAN_VIEN nv
+            LEFT JOIN TAI_KHOAN tk ON tk.id_tai_khoan = nv.id_tai_khoan
+            LEFT JOIN VAI_TRO vt ON vt.id_vai_tro = tk.id_vai_tro
+            WHERE (nv.id_nhan_vien = $1 OR nv.id_tai_khoan = $1) AND nv.du_lieu_khuon_mat IS NOT NULL
             LIMIT 1
         `;
         const result = await pool.query(query, [userId]);
@@ -619,7 +609,7 @@ export const recognizeEmployeeFace = async (req, res) => {
                 success: true,
                 message: `Xác thực thành công. Độ tương đồng: ${match.bestSimilarity.toFixed(2)}%`,
                 data: {
-                    id: user.id,
+                    id_nhan_vien: user.id_nhan_vien,
                     username: user.username,
                     full_name: user.full_name,
                     role: user.role,

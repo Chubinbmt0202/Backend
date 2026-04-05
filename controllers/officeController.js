@@ -1,9 +1,10 @@
 import pool from '../config/db.js';
+import { generateId } from '../utils/idGenerator.js';
 
-// Thêm văn phòng và thiết lập luôn toạ độ GPS (Bán kính mặc định 100m)
+// Thêm văn phòng và thiết lập luôn toạ độ GPS
 export const addOfficeGPS = async (req, res) => {
     try {
-        const { locationName, address, longitude, latitude, radius } = req.body;
+        const { locationName, address, longitude, latitude, radius, wifiName, wifiAddress } = req.body;
 
         // Validate dữ liệu từ client
         if (!locationName || !longitude || !latitude) {
@@ -13,58 +14,55 @@ export const addOfficeGPS = async (req, res) => {
             });
         }
 
-        // Bắt đầu Transaction để đảm bảo tính toàn vẹn dữ liệu
-        await pool.query('BEGIN');
+        const id_van_phong = generateId('VP');
 
-        // 1. Thêm vào bảng VAN_PHONG
-        const officeResult = await pool.query(
-            `INSERT INTO VAN_PHONG (ten, dia_chi) VALUES ($1, $2) RETURNING id_van_phong, ten, dia_chi`,
-            [locationName, address || '']
-        );
-        const newOffice = officeResult.rows[0];
+        // Thêm vào bảng VAN_PHONG
+        const query = `
+            INSERT INTO VAN_PHONG (id_van_phong, ten, dia_chi, kinh_do, vi_do, pham_vi, ten_wifi, dia_chi_wifi) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+            RETURNING *
+        `;
+        const values = [
+            id_van_phong, 
+            locationName, 
+            address || '', 
+            longitude, 
+            latitude, 
+            radius || 100,
+            wifiName || null,
+            wifiAddress || null
+        ];
 
-        // 2. Thêm vào bảng GPS (Tham chiếu id_van_phong vừa tạo)
-        const gpsResult = await pool.query(
-            `INSERT INTO GPS (id_van_phong, kinh_do, vi_do, pham_vi) VALUES ($1, $2, $3, $4) RETURNING id_gps, kinh_do, vi_do, pham_vi`,
-            [newOffice.id_van_phong, longitude, latitude, radius || 100] // Nếu không có radius thì mặc định 100 mét
-        );
-        const newGps = gpsResult.rows[0];
-
-        // Hoàn tất Transaction
-        await pool.query('COMMIT');
+        const result = await pool.query(query, values);
 
         // 3. Trả kết quả về cho client
         res.status(201).json({
             success: true,
-            message: 'Thêm văn phòng và vị trí chấm công GPS thành công!',
-            data: {
-                ...newOffice,
-                gps: newGps
-            }
+            message: 'Thêm văn phòng thành công!',
+            data: result.rows[0]
         });
 
     } catch (error) {
-        await pool.query('ROLLBACK'); // Hoàn tác nếu có lỗi
-        console.error('Lỗi khi thêm vị trí GPS văn phòng:', error.message);
+        console.error('Lỗi khi thêm văn phòng:', error.message);
         res.status(500).json({ success: false, message: 'Lỗi server khi thêm văn phòng.' });
     }
 };
 
-// Hàm lấy danh sách văn phòng (kèm GPS)
+// Hàm lấy danh sách văn phòng
 export const getOffices = async (req, res) => {
     try {
         const query = `
             SELECT 
-                vp.id_van_phong,
-                vp.ten AS locationName,
-                vp.dia_chi AS address,
-                g.id_gps,
-                g.kinh_do AS longitude,
-                g.vi_do AS latitude,
-                g.pham_vi AS radius
-            FROM VAN_PHONG vp
-            LEFT JOIN GPS g ON vp.id_van_phong = g.id_van_phong
-            ORDER BY vp.id_van_phong DESC
+                id_van_phong,
+                ten AS locationName,
+                dia_chi AS address,
+                kinh_do AS longitude,
+                vi_do AS latitude,
+                pham_vi AS radius,
+                ten_wifi,
+                dia_chi_wifi
+            FROM VAN_PHONG
+            ORDER BY id_van_phong DESC
         `;
         const result = await pool.query(query);
 
@@ -79,57 +77,48 @@ export const getOffices = async (req, res) => {
     }
 };
 
-// Cập nhật vị trí GPS văn phòng
+// Cập nhật văn phòng
 export const updateOfficeGPS = async (req, res) => {
     try {
         const { id } = req.params;
-        const { locationName, address, longitude, latitude, radius } = req.body;
+        const { locationName, address, longitude, latitude, radius, wifiName, wifiAddress } = req.body;
 
-        if (!id || isNaN(id)) {
+        if (!id) {
             return res.status(400).json({ success: false, message: 'ID văn phòng không hợp lệ.' });
         }
 
-        await pool.query('BEGIN');
-
-        // Cập nhật VAN_PHONG nếu có dữ liệu
-        if (locationName !== undefined || address !== undefined) {
-            const updates = [];
-            const values = [];
-            let idx = 1;
-            
-            if (locationName !== undefined) { updates.push(`ten = $${idx++}`); values.push(locationName); }
-            if (address !== undefined) { updates.push(`dia_chi = $${idx++}`); values.push(address); }
-            
-            if (updates.length > 0) {
-                values.push(id);
-                const query = `UPDATE VAN_PHONG SET ${updates.join(', ')} WHERE id_van_phong = $${idx}`;
-                await pool.query(query, values);
-            }
+        const updates = [];
+        const values = [];
+        let idx = 1;
+        
+        if (locationName !== undefined) { updates.push(`ten = $${idx++}`); values.push(locationName); }
+        if (address !== undefined) { updates.push(`dia_chi = $${idx++}`); values.push(address); }
+        if (longitude !== undefined) { updates.push(`kinh_do = $${idx++}`); values.push(longitude); }
+        if (latitude !== undefined) { updates.push(`vi_do = $${idx++}`); values.push(latitude); }
+        if (radius !== undefined) { updates.push(`pham_vi = $${idx++}`); values.push(radius); }
+        if (wifiName !== undefined) { updates.push(`ten_wifi = $${idx++}`); values.push(wifiName); }
+        if (wifiAddress !== undefined) { updates.push(`dia_chi_wifi = $${idx++}`); values.push(wifiAddress); }
+        
+        if (updates.length === 0) {
+            return res.status(400).json({ success: false, message: 'Không có dữ liệu cập nhật.' });
         }
 
-        // Cập nhật GPS nếu có dữ liệu
-        if (longitude !== undefined || latitude !== undefined || radius !== undefined) {
-            const updates = [];
-            const values = [];
-            let idx = 1;
+        values.push(id);
+        const query = `UPDATE VAN_PHONG SET ${updates.join(', ')} WHERE id_van_phong = $${idx} RETURNING *`;
+        const result = await pool.query(query, values);
 
-            if (longitude !== undefined) { updates.push(`kinh_do = $${idx++}`); values.push(longitude); }
-            if (latitude !== undefined) { updates.push(`vi_do = $${idx++}`); values.push(latitude); }
-            if (radius !== undefined) { updates.push(`pham_vi = $${idx++}`); values.push(radius); }
-
-            if (updates.length > 0) {
-                values.push(id);
-                const query = `UPDATE GPS SET ${updates.join(', ')} WHERE id_van_phong = $${idx}`;
-                await pool.query(query, values);
-            }
+        if (result.rowCount === 0) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy văn phòng này.' });
         }
 
-        await pool.query('COMMIT');
-        res.status(200).json({ success: true, message: 'Cập nhật văn phòng và vị trí GPS thành công!' });
+        res.status(200).json({ 
+            success: true, 
+            message: 'Cập nhật văn phòng thành công!',
+            data: result.rows[0]
+        });
 
     } catch (error) {
-        await pool.query('ROLLBACK');
-        console.error('Lỗi khi cập nhật vị trí GPS văn phòng:', error.message);
+        console.error('Lỗi khi cập nhật văn phòng:', error.message);
         res.status(500).json({ success: false, message: 'Lỗi server khi cập nhật văn phòng.' });
     }
 };
@@ -138,11 +127,10 @@ export const updateOfficeGPS = async (req, res) => {
 export const deleteOffice = async (req, res) => {
     try {
         const { id } = req.params;
-        if (!id || isNaN(id)) {
+        if (!id) {
             return res.status(400).json({ success: false, message: 'ID văn phòng không hợp lệ.' });
         }
 
-        // GPS table has ON DELETE CASCADE for id_van_phong, so we just delete the office.
         const deleteResult = await pool.query('DELETE FROM VAN_PHONG WHERE id_van_phong = $1 RETURNING id_van_phong', [id]);
         
         if (deleteResult.rowCount === 0) {

@@ -7,6 +7,7 @@ import {
 } from '../controllers/attendanceController.js';
 
 import pool from '../config/db.js';
+import { generateId } from '../utils/idGenerator.js';
 
 const router = express.Router();
 
@@ -107,15 +108,13 @@ router.post('/testRegister', async (req, res) => {
             });
         }
 
-        // Lưu vào Database (nhan_vien.du_lieu_khuon_mat)
+        // Lưu vào Database (NHAN_VIEN.du_lieu_khuon_mat)
         const embeddingJSON = JSON.stringify(embeddings);
         const updateQuery = `
-            UPDATE nhan_vien
-            SET du_lieu_khuon_mat = $1::jsonb,
-                khuon_mat_da_cap_nhat = true,
-                cap_nhat_luc = now()
-            WHERE id = $2 OR tai_khoan_id = $2
-            RETURNING id, ma_nhan_vien, ho_ten, khuon_mat_da_cap_nhat;
+            UPDATE NHAN_VIEN
+            SET du_lieu_khuon_mat = $1::jsonb
+            WHERE id_nhan_vien = $2 OR id_tai_khoan = $2
+            RETURNING id_nhan_vien, ho_va_ten;
         `;
 
         const result = await pool.query(updateQuery, [embeddingJSON, userId]);
@@ -153,13 +152,13 @@ router.post('/checkAttendance', async (req, res) => {
         // 1. Lấy 3 khuôn mặt gốc từ DB
         const userQuery = `
             SELECT
-                nv.id AS nhan_vien_id,
+                nv.id_nhan_vien,
                 tk.ten_dang_nhap AS username,
-                nv.ho_ten AS full_name,
+                nv.ho_va_ten AS full_name,
                 nv.du_lieu_khuon_mat
-            FROM nhan_vien nv
-            LEFT JOIN tai_khoan tk ON tk.id = nv.tai_khoan_id
-            WHERE nv.id = $1 OR nv.tai_khoan_id = $1
+            FROM NHAN_VIEN nv
+            LEFT JOIN TAI_KHOAN tk ON tk.id_tai_khoan = nv.id_tai_khoan
+            WHERE nv.id_nhan_vien = $1 OR nv.id_tai_khoan = $1
             LIMIT 1
         `;
         const userResult = await pool.query(userQuery, [userId]);
@@ -203,38 +202,24 @@ router.post('/checkAttendance', async (req, res) => {
 
         if (bestMatchDistance <= THRESHOLD) {
             // ==========================================
-            // 🚀 4. LƯU LỊCH SỬ CHẤM CÔNG VÀO DATABASE (cham_cong)
+            // 🚀 4. LƯU LỊCH SỬ CHẤM CÔNG VÀO DATABASE (CHAM_CONG)
             // ==========================================
 
-            let timeRecorded;
-            let attendanceType;
+            const id_cham_cong = generateId('CC');
 
-            // Nếu hôm nay đã có bản ghi 'vao' thì coi là check-out, ngược lại check-in
-            const checkInExistsQuery = `
-                SELECT 1
-                FROM cham_cong
-                WHERE nhan_vien_id = $1
-                  AND (date(thoi_gian))::date = CURRENT_DATE
-                  AND loai = 'vao'
-                LIMIT 1
-            `;
-            const checkInExists = await pool.query(checkInExistsQuery, [user.nhan_vien_id]);
-
-            const loai = checkInExists.rowCount === 0 ? 'vao' : 'ra';
             const insertChamCong = `
-                INSERT INTO cham_cong (nhan_vien_id, loai, thoi_gian, nguon, anh_url, ghi_chu)
-                VALUES ($1, $2, now(), 'qr', $3, $4)
+                INSERT INTO CHAM_CONG (id_cham_cong, id_nhan_vien, thoi_gian, anh_url, ghi_chu)
+                VALUES ($1, $2, now(), $3, $4)
                 RETURNING thoi_gian;
             `;
             const insertResult = await pool.query(insertChamCong, [
-                user.nhan_vien_id,
-                loai,
+                id_cham_cong,
+                user.id_nhan_vien,
                 url,
-                loai === 'vao' ? 'Check-in qua AI' : 'Check-out qua AI'
+                'Chấm công qua AI (Python)'
             ]);
 
-            timeRecorded = insertResult.rows[0].thoi_gian;
-            attendanceType = loai === 'vao' ? 'Check-in' : 'Check-out';
+            const timeRecorded = insertResult.rows[0].thoi_gian;
 
             // 5. Trả dữ liệu về cho Điện thoại hiển thị
             return res.json({
@@ -242,10 +227,9 @@ router.post('/checkAttendance', async (req, res) => {
                 message: `Điểm danh thành công! Xác nhận đúng người.`,
                 match_distance: bestMatchDistance.toFixed(2),
                 data: {
-                    iduser: user.nhan_vien_id,
+                    id_nhan_vien: user.id_nhan_vien,
                     fullname: user.full_name,
-                    time: timeRecorded, // Ngày giờ chấm công (lấy chuẩn từ máy chủ DB)
-                    type: attendanceType // Trả thêm loại để App hiện "Bạn vừa Check-in" hay "Bạn vừa Check-out"
+                    time: timeRecorded
                 }
             });
 

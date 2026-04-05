@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import { generateId } from '../utils/idGenerator.js';
 
 export const addShift = async (req, res) => {
     try {
@@ -9,9 +10,11 @@ export const addShift = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Vui lòng cung cấp đầy đủ tên ca, giờ vào, giờ ra' });
         }
 
+        const id_ca_lam = generateId('CA');
+
         const query = `
-            INSERT INTO CA_LAM_VIEC (ten_ca, gio_vao, gio_ra, phut_cho_phep_tre, so_cong, nghi_trua, bat_dau_nghi, ket_thuc_nghi) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+            INSERT INTO CA_LAM_VIEC (id_ca_lam, ten_ca, gio_vao, gio_ra, phut_cho_phep_tre, so_cong, nghi_trua, bat_dau_nghi, ket_thuc_nghi) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
             RETURNING 
                 id_ca_lam AS id, 
                 ten_ca AS shift_name, 
@@ -24,6 +27,7 @@ export const addShift = async (req, res) => {
                 ket_thuc_nghi AS lunch_end_time
         `;
         const values = [
+            id_ca_lam,
             shift_name, 
             start_time, 
             end_time, 
@@ -75,6 +79,10 @@ export const updateShift = async (req, res) => {
 
         console.log(`Đang cập nhật ca làm ID: ${id}`, req.body);
 
+        if (!id) {
+            return res.status(400).json({ success: false, message: "ID không hợp lệ" });
+        }
+
         const query = `
             UPDATE CA_LAM_VIEC 
             SET ten_ca = $1, gio_vao = $2, gio_ra = $3, phut_cho_phep_tre = $4,
@@ -122,6 +130,10 @@ export const deleteShift = async (req, res) => {
     try {
         const { id } = req.params;
         console.log(`Đang xóa ca làm ID: ${id}`);
+
+        if (!id) {
+            return res.status(400).json({ success: false, message: "ID không hợp lệ" });
+        }
 
         const query = 'DELETE FROM CA_LAM_VIEC WHERE id_ca_lam = $1 RETURNING *';
         const result = await pool.query(query, [id]);

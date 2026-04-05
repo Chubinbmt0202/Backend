@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import { generateId } from '../utils/idGenerator.js';
 
 // Thêm vai trò mới
 export const addRole = async (req, res) => {
@@ -8,9 +9,11 @@ export const addRole = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Tên vai trò là bắt buộc.' });
         }
 
+        const id_vai_tro = generateId('VT');
+
         const result = await pool.query(
-            'INSERT INTO VAI_TRO (ten_vai_tro, mo_ta) VALUES ($1, $2) RETURNING *',
-            [ten_vai_tro, mo_ta]
+            'INSERT INTO VAI_TRO (id_vai_tro, ten_vai_tro, mo_ta) VALUES ($1, $2, $3) RETURNING *',
+            [id_vai_tro, ten_vai_tro, mo_ta]
         );
 
         res.status(201).json({ success: true, data: result.rows[0] });
