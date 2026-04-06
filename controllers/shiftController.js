@@ -13,8 +13,8 @@ export const addShift = async (req, res) => {
         const id_ca_lam = generateId('CA');
 
         const query = `
-            INSERT INTO CA_LAM_VIEC (id_ca_lam, ten_ca, gio_vao, gio_ra, phut_cho_phep_tre, so_cong, nghi_trua, bat_dau_nghi, ket_thuc_nghi) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+            INSERT INTO CA_LAM_VIEC (id_ca_lam, ten_ca, gio_vao, gio_ra, phut_cho_phep_tre, so_cong, nghi_trua, bat_dau_nghi, ket_thuc_nghi, ngay_tao) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP) 
             RETURNING 
                 id_ca_lam AS id, 
                 ten_ca AS shift_name, 
@@ -24,7 +24,8 @@ export const addShift = async (req, res) => {
                 so_cong AS coefficient,
                 nghi_trua AS has_lunch_break,
                 bat_dau_nghi AS lunch_start_time,
-                ket_thuc_nghi AS lunch_end_time
+                ket_thuc_nghi AS lunch_end_time,
+                ngay_tao AS created_at
         `;
         const values = [
             id_ca_lam,
@@ -59,7 +60,8 @@ export const getAllShifts = async (req, res) => {
                 so_cong AS coefficient,
                 nghi_trua AS has_lunch_break,
                 bat_dau_nghi AS lunch_start_time,
-                ket_thuc_nghi AS lunch_end_time
+                ket_thuc_nghi AS lunch_end_time,
+                ngay_tao AS created_at
             FROM CA_LAM_VIEC
             ORDER BY id_ca_lam ASC
         `;
@@ -97,7 +99,8 @@ export const updateShift = async (req, res) => {
                 so_cong AS coefficient,
                 nghi_trua AS has_lunch_break,
                 bat_dau_nghi AS lunch_start_time,
-                ket_thuc_nghi AS lunch_end_time
+                ket_thuc_nghi AS lunch_end_time,
+                ngay_tao AS created_at
         `;
         const values = [
             shift_name, 

@@ -89,13 +89,14 @@ CREATE TABLE DON_XIN_NGHI (
 CREATE TABLE CA_LAM_VIEC (
     id_ca_lam VARCHAR(8) PRIMARY KEY,
     ten_ca VARCHAR(255),
-    gio_vao TIMESTAMP,
-    gio_ra TIMESTAMP,
+    gio_vao TIME,
+    gio_ra TIME,
     phut_cho_phep_tre NUMERIC,
     so_cong REAL,
     nghi_trua BOOLEAN,
-    bat_dau_nghi TIMESTAMP,
-    ket_thuc_nghi TIMESTAMP
+    bat_dau_nghi TIME,
+    ket_thuc_nghi TIME,
+    ngay_tao TIMESTAMP
 );
 
 CREATE TABLE VAN_PHONG (
@@ -226,10 +227,10 @@ INSERT INTO DON_XIN_NGHI (id_don_xin_nghi, id_nguoi_dung, id_loai_phep, ngay_bat
 ('DXN001', 'NV003', 'LP001', '2026-05-01 08:00:00', '2026-05-02 17:00:00', 'Về quê', TRUE, 'NV002', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'Đã duyệt'),
 ('DXN002', 'NV003', 'LP002', '2026-06-10 08:00:00', '2026-06-11 17:00:00', 'Bệnh', FALSE, NULL, CURRENT_TIMESTAMP, NULL, 'Chờ duyệt');
 
-INSERT INTO CA_LAM_VIEC (id_ca_lam, ten_ca, gio_vao, gio_ra, phut_cho_phep_tre, so_cong, nghi_trua, bat_dau_nghi, ket_thuc_nghi) VALUES
-('CA001', 'Ca Hành chính', '2000-01-01 08:00:00', '2000-01-01 17:00:00', 15, 1.0, TRUE, '2000-01-01 12:00:00', '2000-01-01 13:00:00'),
-('CA002', 'Ca Sáng', '2000-01-01 08:00:00', '2000-01-01 12:00:00', 15, 0.5, FALSE, NULL, NULL),
-('CA003', 'Ca Chiều', '2000-01-01 13:00:00', '2000-01-01 17:00:00', 15, 0.5, FALSE, NULL, NULL);
+INSERT INTO CA_LAM_VIEC (id_ca_lam, ten_ca, gio_vao, gio_ra, phut_cho_phep_tre, so_cong, nghi_trua, bat_dau_nghi, ket_thuc_nghi, ngay_tao) VALUES
+('CA001', 'Ca Hành chính', '08:00:00', '17:00:00', 15, 1.0, TRUE, '12:00:00', '13:00:00', CURRENT_TIMESTAMP),
+('CA002', 'Ca Sáng', '08:00:00', '12:00:00', 15, 0.5, FALSE, NULL, NULL, CURRENT_TIMESTAMP),
+('CA003', 'Ca Chiều', '13:00:00', '17:00:00', 15, 0.5, FALSE, NULL, NULL, CURRENT_TIMESTAMP);
 
 INSERT INTO VAN_PHONG (id_van_phong, ten, dia_chi, kinh_do, vi_do, pham_vi) VALUES
 ('VP001', 'Trụ sở chính', 'Quận 1, TP HCM', 106.6953, 10.7766, 50);
