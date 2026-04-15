@@ -18,7 +18,7 @@ export const addOfficeGPS = async (req, res) => {
 
         // Thêm vào bảng VAN_PHONG
         const query = `
-            INSERT INTO VAN_PHONG (id_van_phong, ten, dia_chi, kinh_do, vi_do, pham_vi) 
+            INSERT INTO VAN_PHONG (id_van_phong, ten_van_phong, dia_chi, kinh_do, vi_do, pham_vi) 
             VALUES ($1, $2, $3, $4, $5, $6) 
             RETURNING *
         `;
@@ -37,7 +37,7 @@ export const addOfficeGPS = async (req, res) => {
         if (wifiName && wifiAddress) {
             const id_wifi = generateId('WF');
             await pool.query(
-                'INSERT INTO WIFI_VAN_PHONG (id_wifi, ten_wifi, dia_chi_mac, id_van_phong) VALUES ($1, $2, $3, $4)',
+                'INSERT INTO WIFI (id_wifi, ten_wifi, dia_chi_wifi, id_van_phong) VALUES ($1, $2, $3, $4)',
                 [id_wifi, wifiName, wifiAddress, id_van_phong]
             );
         }
@@ -61,7 +61,7 @@ export const getOffices = async (req, res) => {
         const query = `
             SELECT 
                 id_van_phong,
-                ten AS locationName,
+                ten_van_phong AS locationName,
                 dia_chi AS address,
                 kinh_do AS longitude,
                 vi_do AS latitude,
@@ -97,7 +97,7 @@ export const updateOfficeGPS = async (req, res) => {
         const values = [];
         let idx = 1;
 
-        if (locationName !== undefined) { updates.push(`ten = $${idx++}`); values.push(locationName); }
+        if (locationName !== undefined) { updates.push(`ten_van_phong = $${idx++}`); values.push(locationName); }
         if (address !== undefined) { updates.push(`dia_chi = $${idx++}`); values.push(address); }
         if (longitude !== undefined) { updates.push(`kinh_do = $${idx++}`); values.push(longitude); }
         if (latitude !== undefined) { updates.push(`vi_do = $${idx++}`); values.push(latitude); }
@@ -147,20 +147,10 @@ export const deleteOffice = async (req, res) => {
 
         await pool.query('BEGIN');
 
-        // 1. Nếu văn phòng này có tạo DIEM_CHAM_CONG, có thể nó đang được liên kết trong CHAM_CONG
-        // => Phải cập nhật CHAM_CONG set id_diem_cham_cong = NULL trước để gỡ foreign key.
-        await pool.query(`
-            UPDATE CHAM_CONG 
-            SET id_diem_cham_cong = NULL 
-            WHERE id_diem_cham_cong IN (
-                SELECT id_diem_cham_cong FROM DIEM_CHAM_CONG WHERE id_van_phong = $1
-            )
-        `, [id]);
+        // 1. Xoá các bản ghi WIFI liên kết với văn phòng (FK constraint)
+        await pool.query('DELETE FROM WIFI WHERE id_van_phong = $1', [id]);
 
-        // 2. Xoá DIEM_CHAM_CONG liên quan đến văn phòng
-        await pool.query('DELETE FROM DIEM_CHAM_CONG WHERE id_van_phong = $1', [id]);
-
-        // 3. Xoá VAN_PHONG
+        // 2. Xoá VAN_PHONG
         const deleteResult = await pool.query('DELETE FROM VAN_PHONG WHERE id_van_phong = $1 RETURNING id_van_phong', [id]);
 
         if (deleteResult.rowCount === 0) {
@@ -195,9 +185,9 @@ export const updateOfficeWifi = async (req, res) => {
         }
 
         const query = `
-            UPDATE WIFI_VAN_PHONG 
-            SET ten_wifi = $1, dia_chi_mac = $2 
-            WHERE id_wifi = $3 OR dia_chi_mac = $3
+            UPDATE WIFI 
+            SET ten_wifi = $1, dia_chi_wifi = $2 
+            WHERE id_wifi = $3 OR dia_chi_wifi = $3
             RETURNING *
         `;
         const result = await pool.query(query, [wifiName, wifiAddress, id]);
@@ -233,7 +223,7 @@ export const addOfficeWifi = async (req, res) => {
         const id_wifi = generateId('WF');
 
         const query = `
-            INSERT INTO WIFI_VAN_PHONG (id_wifi, ten_wifi, dia_chi_mac, id_van_phong) 
+            INSERT INTO WIFI (id_wifi, ten_wifi, dia_chi_wifi, id_van_phong) 
             VALUES ($1, $2, $3, $4)
             RETURNING *
         `;
@@ -265,8 +255,8 @@ export const deleteOfficeWifi = async (req, res) => {
         }
 
         const query = `
-            DELETE FROM WIFI_VAN_PHONG 
-            WHERE id_wifi = $1 OR dia_chi_mac = $1 
+            DELETE FROM WIFI 
+            WHERE id_wifi = $1 OR dia_chi_wifi = $1 
             RETURNING *
         `;
         const result = await pool.query(query, [id]);
@@ -293,12 +283,12 @@ export const getAllWifis = async (req, res) => {
         const query = `
             SELECT 
                 vp.id_van_phong,
-                vp.ten AS "locationName",
+                vp.ten_van_phong AS "locationName",
                 vp.dia_chi AS address,
                 wf.id_wifi,
                 wf.ten_wifi AS "wifiName",
-                wf.dia_chi_mac AS "wifiAddress"
-            FROM WIFI_VAN_PHONG wf
+                wf.dia_chi_wifi AS "wifiAddress"
+            FROM WIFI wf
             JOIN VAN_PHONG vp ON vp.id_van_phong = wf.id_van_phong
             ORDER BY vp.id_van_phong DESC, wf.id_wifi ASC
         `;

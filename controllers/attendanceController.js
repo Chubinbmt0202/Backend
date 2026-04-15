@@ -33,16 +33,17 @@ export const getAttendanceStatus = async (req, res) => {
         const query = `
             SELECT 
                 $2::date AS log_date,
-                MIN(cc.thoi_gian) AS check_in_time,
-                NULLIF(MAX(cc.thoi_gian), MIN(cc.thoi_gian)) AS check_out_time,
+                cc.gio_vao AS check_in_time,
+                cc.gio_ra AS check_out_time,
                 CASE
-                    WHEN MIN(cc.thoi_gian) IS NULL THEN 'none'
-                    WHEN MAX(cc.thoi_gian) = MIN(cc.thoi_gian) THEN 'checked_in'
+                    WHEN cc.gio_vao IS NULL THEN 'none'
+                    WHEN cc.gio_ra IS NULL THEN 'checked_in'
                     ELSE 'checked_out'
                 END AS status
             FROM CHAM_CONG cc
             WHERE cc.id_nhan_vien = $1
-              AND (date(cc.thoi_gian))::date = $2::date
+              AND cc.gio_vao::date = $2::date
+            LIMIT 1
         `;
 
         const result = await pool.query(query, [userId, queryDate]);
@@ -81,19 +82,18 @@ export const getAllAttendance = async (req, res) => {
                 nv.ho_va_ten AS full_name,
                 tk.ten_dang_nhap AS username,
                 $1::date AS log_date,
-                MIN(cc.thoi_gian) AS check_in_time,
-                NULLIF(MAX(cc.thoi_gian), MIN(cc.thoi_gian)) AS check_out_time,
+                cc.gio_vao AS check_in_time,
+                cc.gio_ra AS check_out_time,
                 CASE
-                    WHEN MIN(cc.thoi_gian) IS NULL THEN 'none'
-                    WHEN MAX(cc.thoi_gian) = MIN(cc.thoi_gian) THEN 'checked_in'
+                    WHEN cc.gio_vao IS NULL THEN 'none'
+                    WHEN cc.gio_ra IS NULL THEN 'checked_in'
                     ELSE 'checked_out'
                 END AS status
             FROM NHAN_VIEN nv
             LEFT JOIN TAI_KHOAN tk ON tk.id_tai_khoan = nv.id_tai_khoan
             LEFT JOIN CHAM_CONG cc
               ON cc.id_nhan_vien = nv.id_nhan_vien
-             AND (date(cc.thoi_gian))::date = $1::date
-            GROUP BY nv.id_nhan_vien, nv.ho_va_ten, tk.ten_dang_nhap
+             AND cc.gio_vao::date = $1::date
             ORDER BY nv.id_nhan_vien ASC
         `;
 
@@ -196,19 +196,18 @@ export const getEmployeeAttendanceHistory = async (req, res) => {
 
         const query = `
             SELECT 
-                (date(cc.thoi_gian))::date AS log_date,
-                TO_CHAR((date(cc.thoi_gian))::date, 'TMDay') AS day_of_week,
-                MIN(cc.thoi_gian) AS check_in_time,
-                NULLIF(MAX(cc.thoi_gian), MIN(cc.thoi_gian)) AS check_out_time,
+                cc.gio_vao::date AS log_date,
+                TO_CHAR(cc.gio_vao::date, 'TMDay') AS day_of_week,
+                cc.gio_vao AS check_in_time,
+                cc.gio_ra AS check_out_time,
                 CASE
-                    WHEN MIN(cc.thoi_gian) IS NULL THEN 'none'
-                    WHEN MAX(cc.thoi_gian) = MIN(cc.thoi_gian) THEN 'checked_in'
+                    WHEN cc.gio_vao IS NULL THEN 'none'
+                    WHEN cc.gio_ra IS NULL THEN 'checked_in'
                     ELSE 'checked_out'
                 END AS status
             FROM CHAM_CONG cc
             WHERE cc.id_nhan_vien = $1
-            GROUP BY (date(cc.thoi_gian))::date
-            ORDER BY log_date DESC
+            ORDER BY cc.gio_vao DESC
         `;
 
         const result = await pool.query(query, [userId]);
@@ -228,3 +227,4 @@ export const getEmployeeAttendanceHistory = async (req, res) => {
         });
     }
 };
+

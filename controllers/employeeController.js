@@ -236,6 +236,7 @@ export const getEmployeeByID = async (req, res) => {
         `;
 
         const employee = await pool.query(query, [id]);
+        console.log("id nhân viên khi lấy chi tiết: ", id)
 
         // Kiểm tra xem có tìm thấy nhân viên không
         if (employee.rowCount === 0) {
@@ -245,11 +246,38 @@ export const getEmployeeByID = async (req, res) => {
             });
         }
 
+        // Lấy lịch sử chấm công của nhân viên
+        const attendanceQuery = `
+            SELECT
+                cc.id_cham_cong,
+                cc.gio_vao::date AS log_date,
+                TO_CHAR(cc.gio_vao::date, 'TMDay') AS day_of_week,
+                cc.gio_vao AS check_in_time,
+                cc.gio_ra AS check_out_time,
+                cc.ghi_chu AS note,
+                CASE
+                    WHEN cc.gio_vao IS NULL THEN 'none'
+                    WHEN cc.gio_ra IS NULL THEN 'checked_in'
+                    ELSE 'checked_out'
+                END AS status,
+                ca.ten_ca AS shift_name
+            FROM CHAM_CONG cc
+            LEFT JOIN CA_LAM_VIEC ca ON ca.id_ca_lam_viec = cc.id_ca_lam
+            WHERE cc.id_nhan_vien = $1
+            ORDER BY cc.gio_vao DESC
+            LIMIT 30
+        `;
+
+        const attendance = await pool.query(attendanceQuery, [id]);
+
         // Trả về dữ liệu thành công
         res.status(200).json({
             success: true,
             message: 'Lấy thông tin nhân viên thành công',
-            data: employee.rows[0]
+            data: {
+                ...employee.rows[0],
+                attendance_history: attendance.rows
+            }
         });
 
     } catch (error) {

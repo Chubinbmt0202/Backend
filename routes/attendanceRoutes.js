@@ -207,19 +207,39 @@ router.post('/checkAttendance', async (req, res) => {
 
             const id_cham_cong = generateId('CC');
 
-            const insertChamCong = `
-                INSERT INTO CHAM_CONG (id_cham_cong, id_nhan_vien, thoi_gian, anh_url, ghi_chu)
-                VALUES ($1, $2, now(), $3, $4)
-                RETURNING thoi_gian;
-            `;
-            const insertResult = await pool.query(insertChamCong, [
-                id_cham_cong,
-                user.id_nhan_vien,
-                url,
-                'Chấm công qua AI (Python)'
-            ]);
+            // Kiểm tra xem hôm nay đã có bản ghi chấm công chưa
+            const existingRecord = await pool.query(
+                `SELECT id_cham_cong, gio_vao, gio_ra FROM CHAM_CONG 
+                 WHERE id_nhan_vien = $1 AND gio_vao::date = CURRENT_DATE
+                 LIMIT 1`,
+                [user.id_nhan_vien]
+            );
 
-            const timeRecorded = insertResult.rows[0].thoi_gian;
+            let timeRecorded;
+
+            if (existingRecord.rowCount > 0 && !existingRecord.rows[0].gio_ra) {
+                // Đã check-in rồi → cập nhật gio_ra (check-out)
+                const updateResult = await pool.query(
+                    `UPDATE CHAM_CONG SET gio_ra = now(), url_anh = $1, ghi_chu = $2
+                     WHERE id_cham_cong = $3 RETURNING gio_ra`,
+                    [url, 'Check-out qua AI (Python)', existingRecord.rows[0].id_cham_cong]
+                );
+                timeRecorded = updateResult.rows[0].gio_ra;
+            } else {
+                // Chưa check-in → tạo bản ghi mới
+                const insertChamCong = `
+                    INSERT INTO CHAM_CONG (id_cham_cong, id_nhan_vien, gio_vao, url_anh, ghi_chu)
+                    VALUES ($1, $2, now(), $3, $4)
+                    RETURNING gio_vao;
+                `;
+                const insertResult = await pool.query(insertChamCong, [
+                    id_cham_cong,
+                    user.id_nhan_vien,
+                    url,
+                    'Chấm công qua AI (Python)'
+                ]);
+                timeRecorded = insertResult.rows[0].gio_vao;
+            }
 
             // 5. Trả dữ liệu về cho Điện thoại hiển thị
             return res.json({

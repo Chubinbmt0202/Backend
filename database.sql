@@ -17,26 +17,34 @@ DROP TABLE IF EXISTS VAN_PHONG CASCADE;
 -- ========================================================
 -- 1. TẠO CÁC BẢNG (TABLES)
 -- ========================================================
+-- ========================================================
+-- PHẦN 1: TẠO CÁC BẢNG (TABLES) VÀ KHÓA CHÍNH (PRIMARY KEYS)
+-- ========================================================
 
-CREATE TABLE VAI_TRO (
-    id_vai_tro VARCHAR(8) PRIMARY KEY,
-    ten_vai_tro VARCHAR(255),
-    mo_ta VARCHAR(255)
-);
-
+-- 1. Bảng Quyền
 CREATE TABLE QUYEN (
     id_quyen VARCHAR(8) PRIMARY KEY,
     ten_quyen VARCHAR(255),
-    ma_quyen VARCHAR(10),
     mo_ta VARCHAR(255)
 );
 
+-- 2. Bảng Vai Trò
+CREATE TABLE VAI_TRO (
+    id_vai_tro VARCHAR(8) PRIMARY KEY,
+    ten_vai_tro VARCHAR(255),
+    mo_ta VARCHAR(255),
+    ngay_tao TIMESTAMP,
+    id_nguoi_dung VARCHAR(8)
+);
+
+-- 3. Bảng Vai Trò - Quyền Hạn (Bảng trung gian)
 CREATE TABLE VAI_TRO_QUYEN_HAN (
     id_vai_tro VARCHAR(8),
     id_quyen VARCHAR(8),
     PRIMARY KEY (id_vai_tro, id_quyen)
 );
 
+-- 4. Bảng Tài Khoản
 CREATE TABLE TAI_KHOAN (
     id_tai_khoan VARCHAR(8) PRIMARY KEY,
     ten_dang_nhap VARCHAR(255),
@@ -46,202 +54,245 @@ CREATE TABLE TAI_KHOAN (
     ngay_tao TIMESTAMP
 );
 
+-- 5. Bảng Phòng Ban
 CREATE TABLE PHONG_BAN (
     id_phong_ban VARCHAR(8) PRIMARY KEY,
+    ten_phong_ban VARCHAR(255),
     mo_ta VARCHAR(255),
-    ngay_tao TIMESTAMP,
-    id_nguoi_dung VARCHAR(8)
+    id_nguoi_dung VARCHAR(8),
+    ngay_tao TIMESTAMP
 );
 
+-- 6. Bảng Nhân Viên
 CREATE TABLE NHAN_VIEN (
     id_nhan_vien VARCHAR(8) PRIMARY KEY,
     ho_va_ten VARCHAR(255),
-    ngay_sinh TIMESTAMP,
+    ngay_sinh DATE,
     so_dien_thoai VARCHAR(10),
     dia_chi VARCHAR(255),
-    du_lieu_khuon_mat JSONB,
+    du_lieu_khuon_mat CHAR(255), -- Đặt độ dài cho CHAR để chứa dữ liệu (hoặc có thể dùng TEXT tuỳ hệ quản trị)
     id_tai_khoan VARCHAR(8),
     id_phong_ban VARCHAR(8)
 );
 
+-- 7. Bảng Loại Phép
 CREATE TABLE LOAI_PHEP (
     id_loai_phep VARCHAR(8) PRIMARY KEY,
     ten_phep VARCHAR(255),
     so_ngay_toi_da NUMERIC,
     co_luong BOOLEAN,
-    mo_ta TEXT
+    mo_ta VARCHAR(255) 
 );
 
+-- 8. Bảng Đơn Xin Nghỉ
 CREATE TABLE DON_XIN_NGHI (
     id_don_xin_nghi VARCHAR(8) PRIMARY KEY,
     id_nguoi_dung VARCHAR(8),
     id_loai_phep VARCHAR(8),
-    ngay_bat_dau TIMESTAMP,
-    ngay_ket_thuc TIMESTAMP,
+    ngay_bat_dau DATE,
+    ngay_ket_thuc DATE,
     ly_do VARCHAR(255),
     trang_thai BOOLEAN,
     id_nguoi_duyet VARCHAR(8),
-    ngay_tao TIMESTAMP,
     ngay_duyet TIMESTAMP,
+    ngay_tao TIMESTAMP,
     ghi_chu VARCHAR(255)
 );
 
+-- 9. Bảng Ca Làm Việc
 CREATE TABLE CA_LAM_VIEC (
-    id_ca_lam VARCHAR(8) PRIMARY KEY,
+    id_ca_lam_viec VARCHAR(8) PRIMARY KEY,
     ten_ca VARCHAR(255),
-    gio_vao TIME,
-    gio_ra TIME,
+    gio_vao TIMESTAMP,
+    gio_ra TIMESTAMP,
     phut_cho_phep_tre NUMERIC,
-    so_cong REAL,
+    so_cong FLOAT,
     nghi_trua BOOLEAN,
-    bat_dau_nghi TIME,
-    ket_thuc_nghi TIME,
-    ngay_tao TIMESTAMP
+    bat_dau_nghi TIMESTAMP,
+    ket_thuc_nghi TIMESTAMP
 );
 
-CREATE TABLE VAN_PHONG (
-    id_van_phong VARCHAR(8) PRIMARY KEY,
-    ten VARCHAR(255),
-    dia_chi VARCHAR(255),
-    kinh_do DECIMAL,
-    vi_do DECIMAL,
-    pham_vi NUMERIC
-);
-
+-- 10. Bảng Điểm Chấm Công
 CREATE TABLE DIEM_CHAM_CONG (
     id_diem_cham_cong VARCHAR(8) PRIMARY KEY,
-    vi_do DECIMAL,
-    kinh_do DECIMAL,
-    ssid VARCHAR(255),
-    bssid VARCHAR(255),
-    id_van_phong VARCHAR(8)
+    kinh_do DECIMAL(10, 6),
+    vi_do DECIMAL(10, 6),
+    ten_wifi VARCHAR(255),
+    dia_chi_wifi VARCHAR(255)
 );
 
+-- 11. Bảng Chấm Công
 CREATE TABLE CHAM_CONG (
     id_cham_cong VARCHAR(8) PRIMARY KEY,
     id_nhan_vien VARCHAR(8),
-    id_ca_lam_viec VARCHAR(8),
-    thoi_gian TIMESTAMP,
+    id_ca_lam VARCHAR(8),
     id_diem_cham_cong VARCHAR(8),
     ten_wifi VARCHAR(255),
     dia_chi_wifi VARCHAR(255),
-    vi_do DECIMAL,
-    kinh_do DECIMAL,
-    anh_url VARCHAR(255),
+    kinh_do DECIMAL(10, 6),
+    vi_do DECIMAL(10, 6),
+    gio_vao TIMESTAMP,
+    gio_ra TIMESTAMP,
+    url_anh VARCHAR(255),
     ghi_chu VARCHAR(255)
 );
 
-CREATE TABLE WIFI_VAN_PHONG (
+-- 12. Bảng Văn Phòng
+CREATE TABLE VAN_PHONG (
+    id_van_phong VARCHAR(8) PRIMARY KEY,
+    ten_van_phong VARCHAR(255), 
+    dia_chi VARCHAR(255),
+    kinh_do DECIMAL(10, 6),
+    vi_do DECIMAL(10, 6),
+    pham_vi NUMERIC
+);
+
+-- 13. Bảng WiFi
+CREATE TABLE WIFI (
     id_wifi VARCHAR(8) PRIMARY KEY,
     ten_wifi VARCHAR(255),
-    dia_chi_mac VARCHAR(255),
+    dia_chi_wifi VARCHAR(255),
     id_van_phong VARCHAR(8)
 );
 
-
 -- ========================================================
--- 2. THIẾT LẬP CÁC KHÓA NGOẠI (FOREIGN KEYS)
+-- PHẦN 2: TẠO CÁC RÀNG BUỘC KHÓA NGOẠI (FOREIGN KEYS)
 -- ========================================================
 
--- Liên kết VAI_TRO_QUYEN_HAN
+-- Vai trò & Quyền hạn
+ALTER TABLE VAI_TRO 
+ADD CONSTRAINT FK_VaiTro_NguoiDung FOREIGN KEY (id_nguoi_dung) REFERENCES TAI_KHOAN(id_tai_khoan);
+
 ALTER TABLE VAI_TRO_QUYEN_HAN 
-    ADD CONSTRAINT fk_vtqh_vaitro FOREIGN KEY (id_vai_tro) REFERENCES VAI_TRO(id_vai_tro),
-    ADD CONSTRAINT fk_vtqh_quyen FOREIGN KEY (id_quyen) REFERENCES QUYEN(id_quyen);
+ADD CONSTRAINT FK_VTQH_VaiTro FOREIGN KEY (id_vai_tro) REFERENCES VAI_TRO(id_vai_tro);
 
--- Liên kết TAI_KHOAN -> VAI_TRO
+ALTER TABLE VAI_TRO_QUYEN_HAN 
+ADD CONSTRAINT FK_VTQH_Quyen FOREIGN KEY (id_quyen) REFERENCES QUYEN(id_quyen);
+
+-- Tài khoản
 ALTER TABLE TAI_KHOAN 
-    ADD CONSTRAINT fk_taikhoan_vaitro FOREIGN KEY (id_vai_tro) REFERENCES VAI_TRO(id_vai_tro);
+ADD CONSTRAINT FK_TaiKhoan_VaiTro FOREIGN KEY (id_vai_tro) REFERENCES VAI_TRO(id_vai_tro);
 
--- Liên kết NHAN_VIEN -> TAI_KHOAN & PHONG_BAN
-ALTER TABLE NHAN_VIEN 
-    ADD CONSTRAINT fk_nhanvien_taikhoan FOREIGN KEY (id_tai_khoan) REFERENCES TAI_KHOAN(id_tai_khoan),
-    ADD CONSTRAINT fk_nhanvien_phongban FOREIGN KEY (id_phong_ban) REFERENCES PHONG_BAN(id_phong_ban);
-
--- Liên kết PHONG_BAN -> NHAN_VIEN (Người quản lý phòng ban)
+-- Phòng ban
 ALTER TABLE PHONG_BAN 
-    ADD CONSTRAINT fk_phongban_nguoidung FOREIGN KEY (id_nguoi_dung) REFERENCES NHAN_VIEN(id_nhan_vien);
+ADD CONSTRAINT FK_PhongBan_NguoiDung FOREIGN KEY (id_nguoi_dung) REFERENCES TAI_KHOAN(id_tai_khoan);
 
--- Liên kết DON_XIN_NGHI
+-- Nhân viên
+ALTER TABLE NHAN_VIEN 
+ADD CONSTRAINT FK_NhanVien_TaiKhoan FOREIGN KEY (id_tai_khoan) REFERENCES TAI_KHOAN(id_tai_khoan);
+
+ALTER TABLE NHAN_VIEN 
+ADD CONSTRAINT FK_NhanVien_PhongBan FOREIGN KEY (id_phong_ban) REFERENCES PHONG_BAN(id_phong_ban);
+
+-- Đơn xin nghỉ
 ALTER TABLE DON_XIN_NGHI 
-    ADD CONSTRAINT fk_dxn_nguoidung FOREIGN KEY (id_nguoi_dung) REFERENCES NHAN_VIEN(id_nhan_vien),
-    ADD CONSTRAINT fk_dxn_nguoiduyet FOREIGN KEY (id_nguoi_duyet) REFERENCES NHAN_VIEN(id_nhan_vien),
-    ADD CONSTRAINT fk_dxn_loaiphep FOREIGN KEY (id_loai_phep) REFERENCES LOAI_PHEP(id_loai_phep);
+ADD CONSTRAINT FK_DonXinNghi_NhanVien FOREIGN KEY (id_nguoi_dung) REFERENCES NHAN_VIEN(id_nhan_vien);
 
--- Liên kết DIEM_CHAM_CONG -> VAN_PHONG
-ALTER TABLE DIEM_CHAM_CONG 
-    ADD CONSTRAINT fk_dcc_vanphong FOREIGN KEY (id_van_phong) REFERENCES VAN_PHONG(id_van_phong);
+ALTER TABLE DON_XIN_NGHI 
+ADD CONSTRAINT FK_DonXinNghi_NguoiDuyet FOREIGN KEY (id_nguoi_duyet) REFERENCES NHAN_VIEN(id_nhan_vien);
 
--- Liên kết WIFI_VAN_PHONG -> VAN_PHONG
-ALTER TABLE WIFI_VAN_PHONG 
-    ADD CONSTRAINT fk_wvp_vanphong FOREIGN KEY (id_van_phong) REFERENCES VAN_PHONG(id_van_phong) ON DELETE CASCADE;
+ALTER TABLE DON_XIN_NGHI 
+ADD CONSTRAINT FK_DonXinNghi_LoaiPhep FOREIGN KEY (id_loai_phep) REFERENCES LOAI_PHEP(id_loai_phep);
 
--- Liên kết CHAM_CONG
+-- Chấm công
 ALTER TABLE CHAM_CONG 
-    ADD CONSTRAINT fk_cc_nhanvien FOREIGN KEY (id_nhan_vien) REFERENCES NHAN_VIEN(id_nhan_vien),
-    ADD CONSTRAINT fk_cc_calamviec FOREIGN KEY (id_ca_lam_viec) REFERENCES CA_LAM_VIEC(id_ca_lam),
-    ADD CONSTRAINT fk_cc_diemchamcong FOREIGN KEY (id_diem_cham_cong) REFERENCES DIEM_CHAM_CONG(id_diem_cham_cong);
+ADD CONSTRAINT FK_ChamCong_NhanVien FOREIGN KEY (id_nhan_vien) REFERENCES NHAN_VIEN(id_nhan_vien);
+
+ALTER TABLE CHAM_CONG 
+ADD CONSTRAINT FK_ChamCong_CaLamViec FOREIGN KEY (id_ca_lam) REFERENCES CA_LAM_VIEC(id_ca_lam_viec);
+
+ALTER TABLE CHAM_CONG 
+ADD CONSTRAINT FK_ChamCong_DiemChamCong FOREIGN KEY (id_diem_cham_cong) REFERENCES DIEM_CHAM_CONG(id_diem_cham_cong);
+
+-- WiFi
+ALTER TABLE WIFI 
+ADD CONSTRAINT FK_WiFi_VanPhong FOREIGN KEY (id_van_phong) REFERENCES VAN_PHONG(id_van_phong);
 
 -- ========================================================
--- 3. DỮ LIỆU MẪU (DUMMY DATA)
+-- PHẦN 3: DỮ LIỆU MẪU (SAMPLE DATA)
 -- ========================================================
 
-INSERT INTO VAI_TRO (id_vai_tro, ten_vai_tro, mo_ta) VALUES
-('VT001', 'Admin', 'Quản trị viên hệ thống'),
-('VT002', 'Manager', 'Quản lý phòng ban'),
-('VT003', 'Employee', 'Nhân viên thông thường');
+-- 1. Bảng Quyền
+INSERT INTO QUYEN (id_quyen, ten_quyen, mo_ta) VALUES
+('Q001', 'Toàn quyền', 'Quản trị viên hệ thống'),
+('Q002', 'Chấm công', 'Quyền chấm công hàng ngày'),
+('Q003', 'Quản lý nhân sự', 'Quyền quản lý nhân sự'),
+('Q004', 'Xem báo cáo', 'Quản lý và xem báo cáo');
 
-INSERT INTO QUYEN (id_quyen, ten_quyen, ma_quyen, mo_ta) VALUES
-('Q001', 'Quản lý nhân sự', 'HR_MGR', 'Quyền thêm/sửa/xóa nhân viên'),
-('Q002', 'Duyệt đơn nghỉ', 'LEAVE_APP', 'Quyền duyệt đơn xin nghỉ'),
-('Q003', 'Chấm công', 'ATTEND', 'Quyền xem và xuất dữ liệu chấm công');
+-- 2. Bảng Vai Trò (Tạm để id_nguoi_dung là NULL do chưa có dữ liệu User)
+INSERT INTO VAI_TRO (id_vai_tro, ten_vai_tro, mo_ta, ngay_tao, id_nguoi_dung) VALUES
+('VT001', 'Admin', 'Quản trị viên toàn hệ thống', '2026-01-01 00:00:00', NULL),
+('VT002', 'HR', 'Trưởng phòng nhân sự', '2026-01-01 00:00:00', NULL),
+('VT003', 'Nhân viên', 'Nhân viên bình thường', '2026-01-01 00:00:00', NULL);
 
+-- 3. Bảng Vai Trò - Quyền Hạn
 INSERT INTO VAI_TRO_QUYEN_HAN (id_vai_tro, id_quyen) VALUES
-('VT001', 'Q001'), ('VT001', 'Q002'), ('VT001', 'Q003'),
-('VT002', 'Q002'), ('VT002', 'Q003');
+('VT001', 'Q001'),
+('VT002', 'Q003'),
+('VT002', 'Q004'),
+('VT003', 'Q002');
 
+-- 4. Bảng Tài Khoản (mật khẩu mặc định 123456 - trong thực tế sẽ băm)
 INSERT INTO TAI_KHOAN (id_tai_khoan, ten_dang_nhap, mat_khau, id_vai_tro, trang_thai, ngay_tao) VALUES
-('TK001', 'admin', '123456', 'VT001', TRUE, CURRENT_TIMESTAMP),
-('TK002', 'manager1', '123456', 'VT002', TRUE, CURRENT_TIMESTAMP),
-('TK003', 'emp1', '123456', 'VT003', TRUE, CURRENT_TIMESTAMP);
+('TK001', 'admin', '123456', 'VT001', TRUE, '2026-01-01 00:00:00'),
+('TK002', 'hr01', '123456', 'VT002', TRUE, '2026-01-01 00:00:00'),
+('TK003', 'nv01', '123456', 'VT003', TRUE, '2026-01-01 00:00:00'),
+('TK004', 'nv02', '123456', 'VT003', TRUE, '2026-01-01 00:00:00');
 
--- Thêm phòng ban trước với id_nguoi_dung = NULL để tránh lỗi vòng lặp khóa ngoại
-INSERT INTO PHONG_BAN (id_phong_ban, mo_ta, ngay_tao, id_nguoi_dung) VALUES
-('PB001', 'Phòng Hành chính Nhân sự', CURRENT_TIMESTAMP, NULL),
-('PB002', 'Phòng Kỹ thuật', CURRENT_TIMESTAMP, NULL);
+-- Cập nhật lại id_nguoi_dung cho Vai Trò sau khi đã có Tài Khoản
+UPDATE VAI_TRO SET id_nguoi_dung = 'TK001' WHERE id_vai_tro = 'VT001';
+UPDATE VAI_TRO SET id_nguoi_dung = 'TK001' WHERE id_vai_tro = 'VT002';
+UPDATE VAI_TRO SET id_nguoi_dung = 'TK001' WHERE id_vai_tro = 'VT003';
 
+-- 5. Bảng Phòng Ban
+INSERT INTO PHONG_BAN (id_phong_ban, ten_phong_ban, mo_ta, id_nguoi_dung, ngay_tao) VALUES
+('PB001', 'Ban Giám Đốc', 'Phòng điều hành và ra quyết định', 'TK001', '2026-01-01 00:00:00'),
+('PB002', 'Phòng Nhân Sự', 'Quản lý nhân sự, tuyển dụng, lương', 'TK001', '2026-01-01 00:00:00'),
+('PB003', 'Phòng Kỹ Thuật', 'Phát triển phần mềm và duy trì hệ thống', 'TK001', '2026-01-01 00:00:00');
+
+-- 6. Bảng Nhân Viên
 INSERT INTO NHAN_VIEN (id_nhan_vien, ho_va_ten, ngay_sinh, so_dien_thoai, dia_chi, du_lieu_khuon_mat, id_tai_khoan, id_phong_ban) VALUES
-('NV001', 'Nguyễn Văn Admin', '1990-01-01', '0901234567', 'Hà Nội', '{}', 'TK001', 'PB001'),
-('NV002', 'Trần Thị Quản Lý', '1992-05-10', '0912345678', 'Đà Nẵng', '{}', 'TK002', 'PB002'),
-('NV003', 'Lê Văn Nhân Viên', '1995-10-20', '0923456789', 'TP HCM', '{}', 'TK003', 'PB002');
+('NV001', 'Nguyễn Văn An', '1985-05-15', '0901234567', '123 Nguyễn Văn Cừ, Quận 5, TP.HCM', NULL, 'TK001', 'PB001'),
+('NV002', 'Trần Thị Bích', '1992-08-20', '0912345678', '456 Lê Lợi, Quận 1, TP.HCM', NULL, 'TK002', 'PB002'),
+('NV003', 'Lê Văn Cường', '1995-10-10', '0923456789', '789 Điện Biên Phủ, Quận Bình Thạnh, TP.HCM', NULL, 'TK003', 'PB003'),
+('NV004', 'Phạm Thị Dung', '1996-12-05', '0934567890', '101 Nguyễn Trãi, Quận A, TP.HN', NULL, 'TK004', 'PB003');
 
--- Cập nhật lại id_nguoi_dung (Trưởng phòng) cho PHONG_BAN
-UPDATE PHONG_BAN SET id_nguoi_dung = 'NV001' WHERE id_phong_ban = 'PB001';
-UPDATE PHONG_BAN SET id_nguoi_dung = 'NV002' WHERE id_phong_ban = 'PB002';
-
+-- 7. Bảng Loại Phép
 INSERT INTO LOAI_PHEP (id_loai_phep, ten_phep, so_ngay_toi_da, co_luong, mo_ta) VALUES
-('LP001', 'Nghỉ phép năm', 12, TRUE, 'Nghỉ phép hằng năm có lương'),
-('LP002', 'Nghỉ ốm', 5, FALSE, 'Nghỉ ốm theo quy định'),
-('LP003', 'Nghỉ không lương', 30, FALSE, 'Nghỉ việc riêng không hưởng lương');
+('LP001', 'Nghỉ phép năm', 12, TRUE, 'Nghỉ phép theo quy định của pháp luật'),
+('LP002', 'Nghỉ đau ốm', 30, FALSE, 'Nghỉ do đau ốm (có giấy hẹn khám/bệnh)'),
+('LP003', 'Nghỉ thai sản', 180, TRUE, 'Nghỉ thai sản theo độ lao động');
 
-INSERT INTO DON_XIN_NGHI (id_don_xin_nghi, id_nguoi_dung, id_loai_phep, ngay_bat_dau, ngay_ket_thuc, ly_do, trang_thai, id_nguoi_duyet, ngay_tao, ngay_duyet, ghi_chu) VALUES
-('DXN001', 'NV003', 'LP001', '2026-05-01 08:00:00', '2026-05-02 17:00:00', 'Về quê', TRUE, 'NV002', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'Đã duyệt'),
-('DXN002', 'NV003', 'LP002', '2026-06-10 08:00:00', '2026-06-11 17:00:00', 'Bệnh', FALSE, NULL, CURRENT_TIMESTAMP, NULL, 'Chờ duyệt');
+-- 8. Bảng Đơn Xin Nghỉ
+INSERT INTO DON_XIN_NGHI (id_don_xin_nghi, id_nguoi_dung, id_loai_phep, ngay_bat_dau, ngay_ket_thuc, ly_do, trang_thai, id_nguoi_duyet, ngay_duyet, ngay_tao, ghi_chu) VALUES
+('DN001', 'NV003', 'LP001', '2026-05-01', '2026-05-02', 'Xử lý việc gia đình', TRUE, 'NV002', '2026-04-28 10:00:00', '2026-04-25 09:00:00', 'Được duyệt'),
+('DN002', 'NV004', 'LP002', '2026-06-15', '2026-06-16', 'Bị cảm mệt không thể đi làm', FALSE, NULL, NULL, '2026-06-14 15:00:00', 'Chờ quản lý duyệt');
 
-INSERT INTO CA_LAM_VIEC (id_ca_lam, ten_ca, gio_vao, gio_ra, phut_cho_phep_tre, so_cong, nghi_trua, bat_dau_nghi, ket_thuc_nghi, ngay_tao) VALUES
-('CA001', 'Ca Hành chính', '08:00:00', '17:00:00', 15, 1.0, TRUE, '12:00:00', '13:00:00', CURRENT_TIMESTAMP),
-('CA002', 'Ca Sáng', '08:00:00', '12:00:00', 15, 0.5, FALSE, NULL, NULL, CURRENT_TIMESTAMP),
-('CA003', 'Ca Chiều', '13:00:00', '17:00:00', 15, 0.5, FALSE, NULL, NULL, CURRENT_TIMESTAMP);
+-- 9. Bảng Ca Làm Việc
+INSERT INTO CA_LAM_VIEC (id_ca_lam_viec, ten_ca, gio_vao, gio_ra, phut_cho_phep_tre, so_cong, nghi_trua, bat_dau_nghi, ket_thuc_nghi) VALUES
+('CA001', 'Ca Hành Chính', '2026-01-01 08:00:00', '2026-01-01 17:30:00', 15, 1.0, TRUE, '2026-01-01 12:00:00', '2026-01-01 13:30:00'),
+('CA002', 'Ca Sáng', '2026-01-01 06:00:00', '2026-01-01 14:00:00', 10, 1.0, TRUE, '2026-01-01 10:00:00', '2026-01-01 10:30:00'),
+('CA003', 'Ca Chiều', '2026-01-01 14:00:00', '2026-01-01 22:00:00', 10, 1.0, TRUE, '2026-01-01 18:00:00', '2026-01-01 18:30:00');
 
-INSERT INTO VAN_PHONG (id_van_phong, ten, dia_chi, kinh_do, vi_do, pham_vi) VALUES
-('VP001', 'Trụ sở chính', 'Quận 1, TP HCM', 106.6953, 10.7766, 50);
+-- 10. Bảng Văn Phòng
+INSERT INTO VAN_PHONG (id_van_phong, ten_van_phong, dia_chi, kinh_do, vi_do, pham_vi) VALUES
+('VP001', 'Trụ Sở Chính (HCM)', '123 Nguyễn Văn Cừ, Quận 5, TP.HCM', 106.682172, 10.762622, 100),
+('VP002', 'Chi Nhánh Hà Nội', '456 Lê Lợi, Hoàn Kiếm, Hà Nội', 105.852100, 21.028511, 50);
 
-INSERT INTO WIFI_VAN_PHONG (id_wifi, ten_wifi, dia_chi_mac, id_van_phong) VALUES
-('WF000001', 'Office_Wifi_T1', '00:11:22:33:44:55', 'VP001'),
-('WF000002', 'Office_Wifi_T2', '66:77:88:99:AA:BB', 'VP001');
+-- 11. Bảng WiFi
+INSERT INTO WIFI (id_wifi, ten_wifi, dia_chi_wifi, id_van_phong) VALUES
+('WF001', 'CTY_Tầng_1', '00:1A:2B:3C:4D:5E', 'VP001'),
+('WF002', 'CTY_Tầng_2', 'AA:BB:CC:DD:EE:FF', 'VP001'),
+('WF003', 'HN_Branch_Wifi', '11:22:33:44:55:66', 'VP002');
 
-INSERT INTO DIEM_CHAM_CONG (id_diem_cham_cong, vi_do, kinh_do, ssid, bssid, id_van_phong) VALUES
-('DCC001', 10.7766, 106.6953, 'Office_Wifi', '00:11:22:33:44:55', 'VP001');
+-- 12. Bảng Điểm Chấm Công (Lưu các lần lấy tọa độ/wifi thành công khi nhân viên bấm chấm công)
+INSERT INTO DIEM_CHAM_CONG (id_diem_cham_cong, kinh_do, vi_do, ten_wifi, dia_chi_wifi) VALUES
+('DC001', 106.682170, 10.762620, 'CTY_Tầng_1', '00:1A:2B:3C:4D:5E'),
+('DC002', 106.682175, 10.762625, 'CTY_Tầng_2', 'AA:BB:CC:DD:EE:FF'),
+('DC003', 105.852101, 21.028512, 'HN_Branch_Wifi', '11:22:33:44:55:66');
 
-INSERT INTO CHAM_CONG (id_cham_cong, id_nhan_vien, id_ca_lam_viec, thoi_gian, id_diem_cham_cong, ten_wifi, dia_chi_wifi, vi_do, kinh_do, anh_url, ghi_chu) VALUES
-('CC001', 'NV003', 'CA001', CURRENT_TIMESTAMP, 'DCC001', 'Office_Wifi', '00:11:22:33:44:55', 10.7766, 106.6953, 'url_image1.jpg', 'Chấm công vào'),
-('CC002', 'NV002', 'CA001', CURRENT_TIMESTAMP, 'DCC001', 'Office_Wifi', '00:11:22:33:44:55', 10.7766, 106.6953, 'url_image2.jpg', 'Chấm công vào');
+-- 13. Bảng Chấm Công
+INSERT INTO CHAM_CONG (id_cham_cong, id_nhan_vien, id_ca_lam, id_diem_cham_cong, ten_wifi, dia_chi_wifi, kinh_do, vi_do, gio_vao, gio_ra, url_anh, ghi_chu) VALUES
+('CC001', 'NV003', 'CA001', 'DC001', 'CTY_Tầng_1', '00:1A:2B:3C:4D:5E', 106.682170, 10.762620, '2026-04-15 07:50:00', '2026-04-15 17:35:00', NULL, 'Đi làm đúng giờ'),
+('CC002', 'NV004', 'CA001', 'DC002', 'CTY_Tầng_2', 'AA:BB:CC:DD:EE:FF', 106.682175, 10.762625, '2026-04-15 08:05:00', '2026-04-15 17:30:00', NULL, 'Đi trễ 5 phút'),
+('CC003', 'NV001', 'CA002', 'DC003', 'HN_Branch_Wifi', '11:22:33:44:55:66', 105.852101, 21.028512, '2026-04-15 05:55:00', '2026-04-15 14:05:00', NULL, 'Sếp đi làm sớm');
