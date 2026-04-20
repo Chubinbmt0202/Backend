@@ -23,7 +23,8 @@ export const login = async (req, res) => {
           vt.ten_vai_tro,
           tk.trang_thai,
           nv.id_nhan_vien,
-          nv.ho_va_ten
+          nv.ho_va_ten,
+          (nv.du_lieu_khuon_mat IS NOT NULL) as is_face_updated
         FROM TAI_KHOAN tk
         LEFT JOIN VAI_TRO vt ON vt.id_vai_tro = tk.id_vai_tro
         LEFT JOIN NHAN_VIEN nv ON nv.id_tai_khoan = tk.id_tai_khoan
@@ -57,6 +58,8 @@ export const login = async (req, res) => {
     res.status(200).json({
       success: true,
       message: "Đăng nhập thành công",
+      token: user.id_tai_khoan.toString(), // Sử dụng ID làm token tạm thời cho mobile
+      is_face_updated: user.is_face_updated,
       data: {
         id_tai_khoan: user.id_tai_khoan,
         ten_dang_nhap: user.ten_dang_nhap,

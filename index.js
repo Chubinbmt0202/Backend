@@ -15,12 +15,12 @@ import uploadRoutes from './routes/uploadRoutes.js'; // Import route upload ản
 import officeRoutes from './routes/officeRoutes.js'; // Import route văn phòng và GPS
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 3001;
 
 // Middlewares (Các bộ lọc)
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || true,
+    origin: 'http://localhost:5173',
     credentials: true, // Cho phép gửi cookie session từ frontend
   })
 ); // Cho phép gọi API từ App
