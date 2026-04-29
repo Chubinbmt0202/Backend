@@ -666,5 +666,84 @@ export const recognizeEmployeeFace = async (req, res) => {
     }
 };
 
+/**
+ * Controller API Lấy thông tin Dashboard cho 1 nhân viên
+ * Hiển thị tên, mã nhân viên, lịch sử chấm công, giờ vào/ra hôm nay, đơn xin phép
+ */
+export const getEmployeeDashboard = async (req, res) => {
+    try {
+        const { id } = req.params;
 
+        if (!id) {
+            return res.status(400).json({ success: false, message: 'ID nhân viên không hợp lệ.' });
+        }
 
+        // 1. Lấy thông tin cơ bản nhân viên
+        const empQuery = `
+            SELECT id_nhan_vien, ho_va_ten, id_phong_ban
+            FROM NHAN_VIEN
+            WHERE id_nhan_vien = $1 OR id_tai_khoan = $1
+            LIMIT 1
+        `;
+        const empResult = await pool.query(empQuery, [id]);
+        if (empResult.rowCount === 0) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy nhân viên.' });
+        }
+        const employee = empResult.rows[0];
+        const idNhanVien = employee.id_nhan_vien;
+
+        // 2. Lấy thông tin chấm công hôm nay
+        const todayAttendanceQuery = `
+            SELECT gio_vao, gio_ra, ghi_chu
+            FROM CHAM_CONG
+            WHERE id_nhan_vien = $1 AND gio_vao::date = CURRENT_DATE
+            ORDER BY gio_vao DESC
+            LIMIT 1
+        `;
+        const todayAttendanceResult = await pool.query(todayAttendanceQuery, [idNhanVien]);
+        const todayAttendance = todayAttendanceResult.rows[0] || null;
+
+        // 3. Lấy lịch sử chấm công (10 lần gần nhất)
+        const historyQuery = `
+            SELECT gio_vao, gio_ra, ghi_chu, url_anh
+            FROM CHAM_CONG
+            WHERE id_nhan_vien = $1
+            ORDER BY gio_vao DESC
+            LIMIT 10
+        `;
+        const historyResult = await pool.query(historyQuery, [idNhanVien]);
+
+        // 4. Lấy đơn xin phép của nhân viên
+        const leaveQuery = `
+            SELECT dxn.id_don_xin_nghi, dxn.ngay_bat_dau, dxn.ngay_ket_thuc, dxn.ly_do, dxn.trang_thai, lp.ten_phep, dxn.ngay_tao
+            FROM DON_XIN_NGHI dxn
+            LEFT JOIN LOAI_PHEP lp ON dxn.id_loai_phep = lp.id_loai_phep
+            WHERE dxn.id_nguoi_dung = $1
+            ORDER BY dxn.ngay_tao DESC
+            LIMIT 10
+        `;
+        const leaveResult = await pool.query(leaveQuery, [idNhanVien]);
+
+        res.status(200).json({
+            success: true,
+            message: 'Lấy thông tin dashboard thành công',
+            data: {
+                employee_info: {
+                    id_nhan_vien: employee.id_nhan_vien,
+                    ho_va_ten: employee.ho_va_ten,
+                    id_phong_ban: employee.id_phong_ban
+                },
+                today_attendance: todayAttendance,
+                recent_attendance_history: historyResult.rows,
+                leave_requests: leaveResult.rows
+            }
+        });
+
+    } catch (error) {
+        console.error('Lỗi khi lấy dashboard nhân viên:', error.message);
+        res.status(500).json({
+            success: false,
+            message: 'Lỗi server, vui lòng thử lại sau.'
+        });
+    }
+};

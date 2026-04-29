@@ -8,7 +8,8 @@ import {
     uploadEmployeeFace,
     requestFaceUpdate,
     recognizeEmployeeFace,
-    getEmployeesByDepartment
+    getEmployeesByDepartment,
+    getEmployeeDashboard
 } from '../controllers/employeeController.js';
 
 const router = express.Router();
@@ -39,5 +40,8 @@ router.put('/request-face-update/:id', requestFaceUpdate);
 
 // API Cho Mobile: Nhận diện khuôn mặt (Identify)
 router.post('/recognize', recognizeEmployeeFace);
+
+// API Dashboard nhân viên (Tổng hợp dữ liệu)
+router.get('/dashboard/:id', getEmployeeDashboard);
 
 export default router;

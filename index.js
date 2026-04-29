@@ -58,5 +58,5 @@ app.use('/api/offices', officeRoutes); // Route quản lý văn phòng và đị
 
 // Lắng nghe ở cổng (port) đã định
 app.listen(port, () => {
-  console.log(`Server đang chạy tại http://localhost:${port}`);
+  console.log(`Server đang chạy tại http://192.168.1.4:${port}`);
 });
