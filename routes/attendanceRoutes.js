@@ -23,6 +23,19 @@ const euclideanDistance = (arr1, arr2) => {
     return Math.sqrt(arr1.reduce((acc, val, i) => acc + Math.pow(val - arr2[i], 2), 0));
 };
 
+// Hàm tính khoảng cách GPS (Haversine formula)
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const toRad = x => (x * Math.PI) / 180;
+    const R = 6371e3; // Bán kính trái đất tính bằng mét
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Trả về khoảng cách bằng mét
+};
+
 // ==========================================
 // KIỂM TRA KẾT NỐI MICROSERVICE KHI KHỞI ĐỘNG
 // ==========================================
@@ -143,10 +156,61 @@ router.post('/testRegister', async (req, res) => {
 // =========================================================================
 router.post('/checkAttendance', async (req, res) => {
     try {
-        const { userId, url } = req.body;
-
+        const { userId, url, evidence, action } = req.body;
+        console.log("req.body", req.body);
         if (!userId || !url) {
             return res.status(400).json({ success: false, message: 'Thiếu userId hoặc url ảnh.' });
+        }
+
+        // ==========================================
+        // 0. KIỂM TRA VỊ TRÍ CHẤM CÔNG (WIFI / GPS)
+        // ==========================================
+        let isValidLocation = false;
+        let locationNote = '';
+
+        if (!evidence) {
+            return res.status(400).json({ success: false, message: 'Bắt buộc phải có thông tin vị trí (WiFi hoặc GPS) để chấm công.' });
+        }
+
+        const { wifi_bssid, lat, lng } = evidence;
+
+        // Ưu tiên 1: Kiểm tra WiFi
+        if (wifi_bssid) {
+            // Chuyển bssid về chữ thường để so sánh (đề phòng)
+            const wifiQuery = await pool.query(`SELECT ten_wifi FROM WIFI WHERE LOWER(dia_chi_wifi) = LOWER($1)`, [wifi_bssid]);
+            if (wifiQuery.rowCount > 0) {
+                isValidLocation = true;
+                locationNote = `WiFi: ${wifiQuery.rows[0].ten_wifi}`;
+            }
+        }
+
+        // Ưu tiên 2: Kiểm tra khoảng cách GPS nếu WiFi không hợp lệ
+        let closestDistance = null;
+        if (!isValidLocation && lat && lng) {
+            const officeQuery = await pool.query(`SELECT ten_van_phong, kinh_do, vi_do, pham_vi FROM VAN_PHONG`);
+            for (const office of officeQuery.rows) {
+                if (office.vi_do && office.kinh_do) {
+                    const distance = calculateDistance(lat, lng, office.vi_do, office.kinh_do);
+                    
+                    if (closestDistance === null || distance < closestDistance) {
+                        closestDistance = distance;
+                    }
+
+                    if (distance <= (office.pham_vi || 100)) { // Mặc định 100m nếu không có dữ liệu
+                        isValidLocation = true;
+                        locationNote = `GPS: ${office.ten_van_phong} (cách ${Math.round(distance)}m)`;
+                        break; // Thoát vòng lặp vì đã tìm thấy vị trí hợp lệ
+                    }
+                }
+            }
+        }
+
+        if (!isValidLocation) {
+            let errorMsg = 'Vị trí của bạn không nằm trong phạm vi văn phòng. Vui lòng kết nối WiFi công ty hoặc đứng gần văn phòng hơn.';
+            if (closestDistance !== null) {
+                errorMsg += ` Hiện bạn đang cách văn phòng gần nhất ${Math.round(closestDistance)}m.`;
+            }
+            return res.status(400).json({ success: false, message: errorMsg });
         }
 
         // 1. Lấy 3 khuôn mặt gốc từ DB
@@ -216,13 +280,18 @@ router.post('/checkAttendance', async (req, res) => {
             );
 
             let timeRecorded;
+            let additionalNote = '';
+
+            if (evidence) {
+                additionalNote = ` - Vị trí: ${locationNote}`;
+            }
 
             if (existingRecord.rowCount > 0 && !existingRecord.rows[0].gio_ra) {
                 // Đã check-in rồi → cập nhật gio_ra (check-out)
                 const updateResult = await pool.query(
                     `UPDATE CHAM_CONG SET gio_ra = now(), url_anh = $1, ghi_chu = $2
                      WHERE id_cham_cong = $3 RETURNING gio_ra`,
-                    [url, 'Check-out qua AI (Python)', existingRecord.rows[0].id_cham_cong]
+                    [url, `Check-out qua AI (Python)${additionalNote}`, existingRecord.rows[0].id_cham_cong]
                 );
                 timeRecorded = updateResult.rows[0].gio_ra;
             } else {
@@ -236,7 +305,7 @@ router.post('/checkAttendance', async (req, res) => {
                     id_cham_cong,
                     user.id_nhan_vien,
                     url,
-                    'Chấm công qua AI (Python)'
+                    `Chấm công qua AI (Python)${additionalNote}`
                 ]);
                 timeRecorded = insertResult.rows[0].gio_vao;
             }

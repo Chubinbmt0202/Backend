@@ -1,5 +1,6 @@
 import pool from '../config/db.js';
 import bcrypt from 'bcrypt';
+import { v2 as cloudinary } from 'cloudinary';
 import { findBestMatch } from '../utils/faceUtils.js';
 import { generateId } from '../utils/idGenerator.js';
 
@@ -310,7 +311,7 @@ export const updateEmployee = async (req, res) => {
         } = req.body;
 
         // Kiểm tra id có hợp lệ không
-        if (!id || isNaN(id)) {
+        if (!id) {
             return res.status(400).json({
                 success: false,
                 message: 'ID nhân viên không hợp lệ.'
@@ -433,9 +434,9 @@ export const updateEmployee = async (req, res) => {
 export const deleteEmployee = async (req, res) => {
     try {
         const { id } = req.params;
-
+        console.log("ID nhân viên cần xóa: ", id)
         // Kiểm tra id có hợp lệ không
-        if (!id || isNaN(id)) {
+        if (!id) {
             return res.status(400).json({
                 success: false,
                 message: 'ID nhân viên không hợp lệ.'
@@ -457,11 +458,49 @@ export const deleteEmployee = async (req, res) => {
         const id_tai_khoan = existing.rows[0].id_tai_khoan;
 
         await pool.query('BEGIN');
+        
+        // 1. Xóa dữ liệu chấm công
+        await pool.query(`DELETE FROM CHAM_CONG WHERE id_nhan_vien = $1`, [id]);
+        
+        // 2. Xử lý dữ liệu đơn xin nghỉ (cập nhật người duyệt thành NULL, xóa đơn của người này)
+        await pool.query(`UPDATE DON_XIN_NGHI SET id_nguoi_duyet = NULL WHERE id_nguoi_duyet = $1`, [id]);
+        await pool.query(`DELETE FROM DON_XIN_NGHI WHERE id_nguoi_dung = $1`, [id]);
+
+        // 3. Xóa nhân viên
         await pool.query(`DELETE FROM NHAN_VIEN WHERE id_nhan_vien = $1`, [id]);
+        
         if (id_tai_khoan) {
+            // 4. Gỡ liên kết TAI_KHOAN ở các bảng khác
+            await pool.query(`UPDATE VAI_TRO SET id_nguoi_dung = NULL WHERE id_nguoi_dung = $1`, [id_tai_khoan]);
+            await pool.query(`UPDATE PHONG_BAN SET id_nguoi_dung = NULL WHERE id_nguoi_dung = $1`, [id_tai_khoan]);
+            
+            // 5. Xóa tài khoản
             await pool.query(`DELETE FROM TAI_KHOAN WHERE id_tai_khoan = $1`, [id_tai_khoan]);
         }
         await pool.query('COMMIT');
+
+        // ==== XÓA THƯ MỤC ẢNH TRÊN CLOUDINARY ====
+        try {
+            if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+                cloudinary.config({
+                    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+                    api_key: process.env.CLOUDINARY_API_KEY,
+                    api_secret: process.env.CLOUDINARY_API_SECRET,
+                });
+
+                const folderPath = `MindCheck/NhanVien_${id}`;
+                // Xóa tất cả ảnh bên trong thư mục trước
+                await cloudinary.api.delete_resources_by_prefix(folderPath);
+                // Sau đó mới xóa thư mục
+                await cloudinary.api.delete_folder(folderPath);
+                console.log(`Đã xóa thư mục Cloudinary: ${folderPath}`);
+            } else {
+                console.warn('Chưa cấu hình Cloudinary API (CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET) trong file .env nên không thể xóa ảnh Cloudinary.');
+            }
+        } catch (cloudinaryError) {
+            console.error(`Lỗi khi xóa ảnh trên Cloudinary cho nhân viên ${id}:`, cloudinaryError.message);
+            // Không throw lỗi để API vẫn trả về success (do DB đã xóa thành công)
+        }
 
         res.status(200).json({
             success: true,
@@ -545,8 +584,8 @@ export const uploadEmployeeFace = async (req, res) => {
 export const requestFaceUpdate = async (req, res) => {
     try {
         const { id } = req.params;
-
-        if (!id || isNaN(id)) {
+        console.log("ID nhân viên: ", id)
+        if (!id) {
             return res.status(400).json({
                 success: false,
                 message: 'ID nhân viên không hợp lệ.'
@@ -650,6 +689,7 @@ export const recognizeEmployeeFace = async (req, res) => {
                 }
             });
         } else {
+            console.log("Khuôn mặt không khớp. Vui lòng thử lại!")
             return res.status(401).json({ // Dùng mã 401 Unauthorized khi sai khuôn mặt
                 success: false,
                 message: "Khuôn mặt không khớp. Vui lòng thử lại!",
