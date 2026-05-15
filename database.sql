@@ -96,7 +96,8 @@ CREATE TABLE DON_XIN_NGHI (
     id_nguoi_duyet VARCHAR(8),
     ngay_duyet TIMESTAMP,
     ngay_tao TIMESTAMP,
-    ghi_chu VARCHAR(255)
+    ghi_chu VARCHAR(255),
+    url_minh_chung VARCHAR(255)
 );
 
 -- 9. Bảng Ca Làm Việc

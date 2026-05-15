@@ -3,8 +3,9 @@ import bcrypt from "bcrypt";
 
 export const login = async (req, res) => {
   try {
-    const { username, password } = req.body;
-    console.log("Data login: ", req.body);
+    const { username, password, wifi_bssid } = req.body;
+    console.log(`\n[LOGIN ATTEMPT] User: ${username} | BSSID: ${wifi_bssid || "N/A"}`);
+    console.log("Full Login Body:", req.body);
 
     if (!username || !password) {
       return res.status(400).json({
@@ -13,6 +14,28 @@ export const login = async (req, res) => {
       });
     }
 
+    // 1. Kiểm tra WiFi công ty (Chỉ bắt buộc trên Mobile)
+    const userAgent = req.headers['user-agent'] || '';
+    const isMobile = /mobile|android|iphone|ipad|expo|okhttp/i.test(userAgent);
+
+    if (isMobile) {
+      console.log("[CHECK] Mobile request detected, enforcing WiFi validation...");
+      // Lấy tất cả BSSID hợp lệ từ bảng WIFI
+      const wifiResult = await pool.query("SELECT dia_chi_wifi FROM WIFI");
+      const validBssids = wifiResult.rows.map(row => row.dia_chi_wifi?.toLowerCase());
+
+      if (!wifi_bssid || !validBssids.includes(wifi_bssid.toLowerCase())) {
+        return res.status(403).json({
+          success: false,
+          message: "Bạn phải sử dụng WiFi công ty để đăng nhập trên ứng dụng mobile.",
+        });
+      }
+    } else {
+      console.log("[CHECK] Web/Admin request detected, skipping WiFi validation.");
+    }
+
+
+    // 2. Tìm người dùng
     const userResult = await pool.query(
       `
         SELECT
@@ -42,6 +65,24 @@ export const login = async (req, res) => {
     }
 
     const user = userResult.rows[0];
+
+    // 3. Kiểm tra mật khẩu
+    // Lưu ý: Trong database.sql có dữ liệu mẫu là plain text '123456'
+    // Nhưng employeeController sử dụng bcrypt để hash. 
+    // Ta sẽ kiểm tra cả 2 trường hợp để tương thích với dữ liệu mẫu.
+    let isPasswordMatch = false;
+    if (user.mat_khau === password) {
+      isPasswordMatch = true;
+    } else {
+      isPasswordMatch = await bcrypt.compare(password, user.mat_khau);
+    }
+
+    if (!isPasswordMatch) {
+      return res.status(401).json({
+        success: false,
+        message: "Username hoặc password không chính xác.",
+      });
+    }
 
     if (!user.trang_thai) {
       return res.status(403).json({

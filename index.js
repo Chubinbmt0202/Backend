@@ -13,6 +13,8 @@ import roleRoutes from './routes/roleRoutes.js'; // Import route vai trò
 import departmentRoutes from './routes/departmentRoutes.js'; // Import route phòng ban
 import uploadRoutes from './routes/uploadRoutes.js'; // Import route upload ảnh Supabase
 import officeRoutes from './routes/officeRoutes.js'; // Import route văn phòng và GPS
+import leaveRoutes from './routes/leaveRoutes.js'; // Import route đơn xin nghỉ
+
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -55,6 +57,8 @@ app.use('/api/roles', roleRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/upload', uploadRoutes); // Route upload file lên Supabase
 app.use('/api/offices', officeRoutes); // Route quản lý văn phòng và định vị GPS
+app.use('/api/leave', leaveRoutes); // Route quản lý đơn xin nghỉ
+
 
 // Lắng nghe ở cổng (port) đã định
 app.listen(port, () => {
