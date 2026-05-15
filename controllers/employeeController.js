@@ -54,6 +54,7 @@ export const addEmployee = async (req, res) => {
             `,
             [id_tai_khoan, username, hashedPassword, role_id || 'VT003'] // Mặc định role_id = VT003 (Nhân viên)
         );
+        console.log("New account:", newAccount.rows[0]);
 
         // Thêm nhân viên
         const newEmployee = await pool.query(
@@ -458,22 +459,22 @@ export const deleteEmployee = async (req, res) => {
         const id_tai_khoan = existing.rows[0].id_tai_khoan;
 
         await pool.query('BEGIN');
-        
+
         // 1. Xóa dữ liệu chấm công
         await pool.query(`DELETE FROM CHAM_CONG WHERE id_nhan_vien = $1`, [id]);
-        
+
         // 2. Xử lý dữ liệu đơn xin nghỉ (cập nhật người duyệt thành NULL, xóa đơn của người này)
         await pool.query(`UPDATE DON_XIN_NGHI SET id_nguoi_duyet = NULL WHERE id_nguoi_duyet = $1`, [id]);
         await pool.query(`DELETE FROM DON_XIN_NGHI WHERE id_nguoi_dung = $1`, [id]);
 
         // 3. Xóa nhân viên
         await pool.query(`DELETE FROM NHAN_VIEN WHERE id_nhan_vien = $1`, [id]);
-        
+
         if (id_tai_khoan) {
             // 4. Gỡ liên kết TAI_KHOAN ở các bảng khác
             await pool.query(`UPDATE VAI_TRO SET id_nguoi_dung = NULL WHERE id_nguoi_dung = $1`, [id_tai_khoan]);
             await pool.query(`UPDATE PHONG_BAN SET id_nguoi_dung = NULL WHERE id_nguoi_dung = $1`, [id_tai_khoan]);
-            
+
             // 5. Xóa tài khoản
             await pool.query(`DELETE FROM TAI_KHOAN WHERE id_tai_khoan = $1`, [id_tai_khoan]);
         }

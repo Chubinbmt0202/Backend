@@ -33,7 +33,8 @@ export const createLeaveRequest = async (req, res) => {
             fromDate,
             toDate,
             reason,
-            id_nhan_vien
+            id_nhan_vien,
+            url_minh_chung: body_url_minh_chung
         } = req.body;
 
         if (!id_nhan_vien || !leaveType || !fromDate || !toDate) {
@@ -43,7 +44,8 @@ export const createLeaveRequest = async (req, res) => {
             });
         }
 
-        let url_minh_chung = null;
+        let url_minh_chung = body_url_minh_chung || null;
+
 
         // 1. Handle file upload if exists
         if (req.file) {
@@ -185,6 +187,53 @@ export const getAllLeaveRequests = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Lỗi server khi lấy danh sách đơn xin nghỉ.'
+        });
+    }
+};
+
+export const updateLeaveStatus = async (req, res) => {
+    try {
+        const { id_don_xin_nghi, status, id_nguoi_duyet, ghi_chu } = req.body;
+
+        if (!id_don_xin_nghi || status === undefined) {
+            return res.status(400).json({
+                success: false,
+                message: 'Vui lòng cung cấp id_don_xin_nghi và status.'
+            });
+        }
+
+        // status: 'approved' -> true, 'rejected' -> false
+        const dbStatus = status === 'approved' ? true : status === 'rejected' ? false : null;
+
+        const query = `
+            UPDATE DON_XIN_NGHI 
+            SET trang_thai = $1, 
+                id_nguoi_duyet = $2, 
+                ngay_duyet = CURRENT_TIMESTAMP,
+                ghi_chu = $3
+            WHERE id_don_xin_nghi = $4
+            RETURNING *;
+        `;
+
+        const result = await pool.query(query, [dbStatus, id_nguoi_duyet, ghi_chu || '', id_don_xin_nghi]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Không tìm thấy đơn xin nghỉ.'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: `Đã ${status === 'approved' ? 'phê duyệt' : 'từ chối'} đơn xin nghỉ.`,
+            data: result.rows[0]
+        });
+    } catch (error) {
+        console.error('Lỗi khi cập nhật trạng thái đơn xin nghỉ:', error.message);
+        res.status(500).json({
+            success: false,
+            message: 'Lỗi server khi cập nhật trạng thái.'
         });
     }
 };
