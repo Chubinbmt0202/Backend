@@ -2,6 +2,7 @@ import pool from '../config/db.js';
 import bcrypt from 'bcrypt';
 import admin from '../config/firebase.js';
 import { v2 as cloudinary } from 'cloudinary';
+import { createNotificationHelper } from './notificationController.js';
 import { findBestMatch } from '../utils/faceUtils.js';
 import { generateId } from '../utils/idGenerator.js';
 
@@ -630,7 +631,7 @@ export const requestFaceUpdate = async (req, res) => {
 
         const result = await pool.query(updateQuery, [id]);
 
-        // 3. Ghi trạng thái yêu cầu cập nhật lên Firebase Realtime Database để đồng bộ realtime xuống App
+        // 3. Ghi trạng thái yêu cầu cập nhật lên Firebase Realtime Database để đồng bộ realtime xuống App (Tính năng cũ)
         let firebaseUpdated = false;
         let firebaseError = null;
         try {
@@ -647,6 +648,19 @@ export const requestFaceUpdate = async (req, res) => {
             firebaseError = err.message;
         }
 
+        // 4. Tạo thông báo lưu trữ riêng cho nhân viên này trong Database PostgreSQL & Firebase Realtime DB (Hệ thống thông báo mới)
+        let notificationCreated = null;
+        try {
+            notificationCreated = await createNotificationHelper(
+                id,
+                "Yêu cầu cập nhật khuôn mặt 📸",
+                "Quản trị viên đã yêu cầu bạn đăng ký lại khuôn mặt mới. Vui lòng thực hiện đăng ký lại khuôn mặt trên ứng dụng.",
+                "FACE_UPDATE"
+            );
+        } catch (notiErr) {
+            console.error("Tạo thông báo lưu trữ thất bại:", notiErr.message);
+        }
+
         return res.status(200).json({
             success: true,
             message: "Yêu cầu cập nhật khuôn mặt đã được ghi nhận. Dữ liệu cũ đã bị xoá.",
@@ -657,11 +671,76 @@ export const requestFaceUpdate = async (req, res) => {
                 message: firebaseUpdated 
                     ? "Đã đồng bộ trạng thái realtime lên Firebase thành công." 
                     : "Lỗi đồng bộ Firebase."
-            }
+            },
+            notification: notificationCreated
         });
 
     } catch (error) {
         console.error("Lỗi khi yêu cầu cập nhật khuôn mặt:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Lỗi server nội bộ"
+        });
+    }
+};
+
+// Controller API Yêu cầu cập nhật lại thông tin cá nhân
+export const requestProfileUpdate = async (req, res) => {
+    try {
+        const { id } = req.params;
+        console.log("Yêu cầu cập nhật thông tin cá nhân cho ID: ", id);
+        
+        if (!id || id === 'NaN' || id === 'undefined' || !id.startsWith('NV')) {
+            return res.status(400).json({
+                success: false,
+                message: 'ID nhân viên không hợp lệ. Định dạng yêu cầu dạng NVxxx.'
+            });
+        }
+
+        // 1. Lấy thông tin nhân viên
+        const infoQuery = `
+            SELECT ho_va_ten 
+            FROM NHAN_VIEN 
+            WHERE id_nhan_vien = $1;
+        `;
+        const infoResult = await pool.query(infoQuery, [id]);
+
+        if (infoResult.rowCount === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Không tìm thấy nhân viên."
+            });
+        }
+
+        const { ho_va_ten } = infoResult.rows[0];
+
+        // 2. Tạo thông báo lưu trữ riêng cho nhân viên này trong Database PostgreSQL & Firebase Realtime DB
+        let notificationCreated = null;
+        try {
+            notificationCreated = await createNotificationHelper(
+                id,
+                "Cập nhật thông tin cá nhân 📝",
+                "Quản trị viên yêu cầu bạn cập nhật lại thông tin cá nhân của mình (Số điện thoại, địa chỉ, ngày sinh...). Vui lòng thực hiện cập nhật sớm.",
+                "PROFILE_UPDATE"
+            );
+            console.log(`🔥 Đã tạo yêu cầu cập nhật thông tin cá nhân cho: ${ho_va_ten}`);
+        } catch (notiErr) {
+            console.error("Tạo thông báo yêu cầu cập nhật thông tin cá nhân thất bại:", notiErr.message);
+            return res.status(500).json({
+                success: false,
+                message: "Lỗi tạo thông báo trên hệ thống.",
+                error: notiErr.message
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Yêu cầu cập nhật thông tin cá nhân đã được gửi thành công.",
+            notification: notificationCreated
+        });
+
+    } catch (error) {
+        console.error("Lỗi khi gửi yêu cầu cập nhật thông tin cá nhân:", error);
         return res.status(500).json({
             success: false,
             message: "Lỗi server nội bộ"

@@ -1,22 +1,27 @@
 import express from 'express';
-import { sendPushNotification } from '../utils/notification.js';
+import { 
+    createNotification,
+    getEmployeeNotifications,
+    markAsRead,
+    markAllAsRead,
+    deleteNotification
+} from '../controllers/notificationController.js';
 
 const router = express.Router();
 
-// API Test gửi thông báo push
-router.post('/send', async (req, res) => {
-  const { token, title, body, data } = req.body;
+// Tạo thông báo mới (Admin hoặc test)
+router.post('/create', createNotification);
 
-  if (!token || !title || !body) {
-    return res.status(400).json({ error: 'Thiếu tham số token, title hoặc body' });
-  }
+// Lấy danh sách thông báo của 1 nhân viên
+router.get('/employee/:employeeId', getEmployeeNotifications);
 
-  try {
-    const result = await sendPushNotification(token, title, body, data);
-    res.status(200).json({ message: 'Đã gửi thông báo thành công!', result });
-  } catch (error) {
-    res.status(500).json({ error: 'Gửi thông báo thất bại', details: error.message });
-  }
-});
+// Đánh dấu 1 thông báo là đã đọc
+router.put('/mark-read/:id', markAsRead);
+
+// Đánh dấu tất cả thông báo của 1 nhân viên là đã đọc
+router.put('/mark-all-read', markAllAsRead);
+
+// Xóa 1 thông báo
+router.delete('/delete/:id', deleteNotification);
 
 export default router;

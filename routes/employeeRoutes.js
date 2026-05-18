@@ -7,6 +7,7 @@ import {
     deleteEmployee, 
     uploadEmployeeFace,
     requestFaceUpdate,
+    requestProfileUpdate,
     recognizeEmployeeFace,
     getEmployeesByDepartment,
     getEmployeeDashboard,
@@ -38,6 +39,9 @@ router.post('/upload-face', uploadEmployeeFace);
 
 // API Yêu cầu cập nhật khuôn mặt
 router.put('/request-face-update/:id', requestFaceUpdate);
+
+// API Yêu cầu cập nhật thông tin cá nhân
+router.put('/request-profile-update/:id', requestProfileUpdate);
 
 // API Cập nhật FCM Token cho nhân viên
 router.post('/fcm-token', updateFcmToken);
