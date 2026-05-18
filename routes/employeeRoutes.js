@@ -9,7 +9,8 @@ import {
     requestFaceUpdate,
     recognizeEmployeeFace,
     getEmployeesByDepartment,
-    getEmployeeDashboard
+    getEmployeeDashboard,
+    updateFcmToken
 } from '../controllers/employeeController.js';
 
 const router = express.Router();
@@ -37,6 +38,9 @@ router.post('/upload-face', uploadEmployeeFace);
 
 // API Yêu cầu cập nhật khuôn mặt
 router.put('/request-face-update/:id', requestFaceUpdate);
+
+// API Cập nhật FCM Token cho nhân viên
+router.post('/fcm-token', updateFcmToken);
 
 // API Cho Mobile: Nhận diện khuôn mặt (Identify)
 router.post('/recognize', recognizeEmployeeFace);

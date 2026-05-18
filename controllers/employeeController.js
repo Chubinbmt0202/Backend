@@ -1,5 +1,6 @@
 import pool from '../config/db.js';
 import bcrypt from 'bcrypt';
+import admin from '../config/firebase.js';
 import { v2 as cloudinary } from 'cloudinary';
 import { findBestMatch } from '../utils/faceUtils.js';
 import { generateId } from '../utils/idGenerator.js';
@@ -568,6 +569,14 @@ export const uploadEmployeeFace = async (req, res) => {
             return res.status(404).json({ success: false, message: "Không tìm thấy người dùng trong hệ thống" });
         }
 
+        // 4.5. Xóa trạng thái yêu cầu cập nhật khuôn mặt trên Firebase Realtime Database
+        try {
+            await admin.database().ref(`face_updates/${userId}`).remove();
+            console.log(`🔥 Đã xóa trạng thái face_update realtime trên Firebase cho: ${userId}`);
+        } catch (err) {
+            console.error("Xóa Firebase Realtime Database thất bại:", err.message);
+        }
+
         // 5. Trả về kết quả thành công cho Mobile
         return res.status(200).json({
             success: true,
@@ -585,14 +594,33 @@ export const uploadEmployeeFace = async (req, res) => {
 export const requestFaceUpdate = async (req, res) => {
     try {
         const { id } = req.params;
+        console.log("ID nhân viên params: ", req.params)
         console.log("ID nhân viên: ", id)
-        if (!id) {
+        if (!id || id === 'NaN' || id === 'undefined' || !id.startsWith('NV')) {
             return res.status(400).json({
                 success: false,
-                message: 'ID nhân viên không hợp lệ.'
+                message: 'ID nhân viên không hợp lệ. Định dạng yêu cầu dạng NVxxx.'
             });
         }
 
+        // 1. Lấy thông tin nhân viên trước khi xóa dữ liệu khuôn mặt
+        const infoQuery = `
+            SELECT ho_va_ten 
+            FROM NHAN_VIEN 
+            WHERE id_nhan_vien = $1;
+        `;
+        const infoResult = await pool.query(infoQuery, [id]);
+
+        if (infoResult.rowCount === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Không tìm thấy nhân viên."
+            });
+        }
+
+        const { ho_va_ten } = infoResult.rows[0];
+
+        // 2. Xóa dữ liệu khuôn mặt cũ
         const updateQuery = `
             UPDATE NHAN_VIEN
             SET du_lieu_khuon_mat = NULL
@@ -602,17 +630,34 @@ export const requestFaceUpdate = async (req, res) => {
 
         const result = await pool.query(updateQuery, [id]);
 
-        if (result.rowCount === 0) {
-            return res.status(404).json({
-                success: false,
-                message: "Không tìm thấy nhân viên."
+        // 3. Ghi trạng thái yêu cầu cập nhật lên Firebase Realtime Database để đồng bộ realtime xuống App
+        let firebaseUpdated = false;
+        let firebaseError = null;
+        try {
+            await admin.database().ref(`face_updates/${id}`).set({
+                id_nhan_vien: id,
+                ho_va_ten: ho_va_ten,
+                request_update: true,
+                updated_at: Date.now()
             });
+            firebaseUpdated = true;
+            console.log(`🔥 Đã đồng bộ trạng thái face_update realtime lên Firebase (Realtime DB) cho: ${ho_va_ten}`);
+        } catch (err) {
+            console.error("Ghi Firebase Realtime Database thất bại:", err.message);
+            firebaseError = err.message;
         }
 
         return res.status(200).json({
             success: true,
             message: "Yêu cầu cập nhật khuôn mặt đã được ghi nhận. Dữ liệu cũ đã bị xoá.",
-            data: result.rows[0]
+            data: result.rows[0],
+            firebase_sync: {
+                success: firebaseUpdated,
+                error: firebaseError,
+                message: firebaseUpdated 
+                    ? "Đã đồng bộ trạng thái realtime lên Firebase thành công." 
+                    : "Lỗi đồng bộ Firebase."
+            }
         });
 
     } catch (error) {
@@ -782,6 +827,48 @@ export const getEmployeeDashboard = async (req, res) => {
 
     } catch (error) {
         console.error('Lỗi khi lấy dashboard nhân viên:', error.message);
+        res.status(500).json({
+            success: false,
+            message: 'Lỗi server, vui lòng thử lại sau.'
+        });
+    }
+};
+
+// Cập nhật FCM Token cho nhân viên
+export const updateFcmToken = async (req, res) => {
+    try {
+        const { employeeId, fcmToken } = req.body;
+
+        if (!employeeId || !fcmToken) {
+            return res.status(400).json({
+                success: false,
+                message: 'Thiếu employeeId hoặc fcmToken.'
+            });
+        }
+
+        const query = `
+            UPDATE NHAN_VIEN
+            SET fcm_token = $1
+            WHERE id_nhan_vien = $2 OR id_tai_khoan = $2
+            RETURNING id_nhan_vien, ho_va_ten, fcm_token;
+        `;
+
+        const result = await pool.query(query, [fcmToken, employeeId]);
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Không tìm thấy nhân viên để cập nhật FCM Token.'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Cập nhật FCM Token thành công!',
+            data: result.rows[0]
+        });
+    } catch (error) {
+        console.error('Lỗi khi cập nhật FCM Token:', error.message);
         res.status(500).json({
             success: false,
             message: 'Lỗi server, vui lòng thử lại sau.'
