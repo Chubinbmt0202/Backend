@@ -1,5 +1,6 @@
 
 -- Xóa các bảng nếu đã tồn tại (theo thứ tự tránh lỗi FK)
+DROP TABLE IF EXISTS THONG_BAO CASCADE;
 DROP TABLE IF EXISTS VAI_TRO_QUYEN_HAN CASCADE;
 DROP TABLE IF EXISTS CHAM_CONG CASCADE;
 DROP TABLE IF EXISTS DON_XIN_NGHI CASCADE;
@@ -156,6 +157,17 @@ CREATE TABLE WIFI (
     id_van_phong VARCHAR(8)
 );
 
+-- 14. Bảng Thông Báo
+CREATE TABLE THONG_BAO (
+    id_thong_bao VARCHAR(8) PRIMARY KEY,
+    id_nhan_vien VARCHAR(8) NOT NULL,
+    tieu_de VARCHAR(255) NOT NULL,
+    noi_dung TEXT NOT NULL,
+    loai_thong_bao VARCHAR(50) DEFAULT 'SYSTEM',
+    da_doc BOOLEAN DEFAULT FALSE,
+    ngay_tao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- ========================================================
 -- PHẦN 2: TẠO CÁC RÀNG BUỘC KHÓA NGOẠI (FOREIGN KEYS)
 -- ========================================================
@@ -208,6 +220,10 @@ ADD CONSTRAINT FK_ChamCong_DiemChamCong FOREIGN KEY (id_diem_cham_cong) REFERENC
 -- WiFi
 ALTER TABLE WIFI 
 ADD CONSTRAINT FK_WiFi_VanPhong FOREIGN KEY (id_van_phong) REFERENCES VAN_PHONG(id_van_phong);
+
+-- Thông báo
+ALTER TABLE THONG_BAO 
+ADD CONSTRAINT FK_ThongBao_NhanVien FOREIGN KEY (id_nhan_vien) REFERENCES NHAN_VIEN(id_nhan_vien) ON DELETE CASCADE;
 
 -- ========================================================
 -- PHẦN 3: DỮ LIỆU MẪU (SAMPLE DATA)
