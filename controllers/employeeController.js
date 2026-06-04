@@ -417,6 +417,18 @@ export const updateEmployee = async (req, res) => {
             [id]
         );
 
+        // Gửi thông báo cho nhân viên về việc thông tin cá nhân đã được thay đổi
+        try {
+            await createNotificationHelper(
+                id,
+                "Cập nhật thông tin 📝",
+                "Quản trị viên đã thay đổi thông tin cá nhân của bạn. Vui lòng kiểm tra lại nếu cần thiết.",
+                "PROFILE_UPDATE"
+            );
+        } catch (notiErr) {
+            console.error("Tạo thông báo cập nhật thông tin cá nhân thất bại:", notiErr.message);
+        }
+
         res.status(200).json({
             success: true,
             message: 'Cập nhật thông tin nhân viên thành công!',

@@ -1,6 +1,8 @@
 import pool from '../config/db.js';
 import supabase from '../config/supabaseClient.js';
 import { generateId } from '../utils/idGenerator.js';
+import { createNotificationHelper } from './notificationController.js';
+import admin from '../config/firebase.js';
 
 // Helper function to convert DD/MM/YYYY to YYYY-MM-DD
 const formatDateForDB = (dateStr) => {
@@ -110,6 +112,49 @@ export const createLeaveRequest = async (req, res) => {
         ];
 
         const result = await pool.query(query, values);
+
+        // Gửi thông báo cho tất cả Admin/HR
+        try {
+            const getHrQuery = `
+                SELECT nv.id_nhan_vien 
+                FROM NHAN_VIEN nv
+                JOIN TAI_KHOAN tk ON nv.id_tai_khoan = tk.id_tai_khoan
+                JOIN VAI_TRO vt ON tk.id_vai_tro = vt.id_vai_tro
+                WHERE vt.ten_vai_tro ILIKE '%Admin%' OR vt.ten_vai_tro ILIKE '%HR%' OR vt.ten_vai_tro ILIKE '%Nhân sự%'
+            `;
+            const hrResult = await pool.query(getHrQuery);
+            
+            // Lấy tên người gửi
+            const empQuery = `SELECT ho_va_ten FROM NHAN_VIEN WHERE id_nhan_vien = $1`;
+            const empResult = await pool.query(empQuery, [id_nhan_vien]);
+            const empName = empResult.rows[0]?.ho_va_ten || "Một nhân viên";
+
+            for (const hr of hrResult.rows) {
+                await createNotificationHelper(
+                    hr.id_nhan_vien,
+                    "Đơn xin nghỉ mới 📩",
+                    `${empName} vừa gửi một đơn xin nghỉ phép. Vui lòng kiểm tra và duyệt.`,
+                    "LEAVE_REQUEST"
+                );
+            }
+
+            // Đồng bộ lên kênh admin_notifications cho Web App (AdminTime)
+            const notifId = generateId('TB');
+            await admin.database().ref(`admin_notifications/${notifId}`).set({
+                id_thong_bao: notifId,
+                id_nhan_vien: id_nhan_vien,
+                ho_ten_nhan_vien: empName,
+                tieu_de: "Đơn xin nghỉ mới 📩",
+                noi_dung: `${empName} vừa gửi một đơn xin nghỉ phép. Vui lòng kiểm tra và duyệt.`,
+                loai_thong_bao: "LEAVE_REQUEST",
+                da_doc: false,
+                ngay_tao: Date.now()
+            });
+            console.log(`🔥 Đã đồng bộ thông báo lên kênh admin_notifications cho Web App`);
+
+        } catch (notiErr) {
+            console.error('Lỗi khi gửi thông báo đơn xin nghỉ cho HR:', notiErr.message);
+        }
 
         res.status(201).json({
             success: true,
@@ -222,6 +267,20 @@ export const updateLeaveStatus = async (req, res) => {
                 success: false,
                 message: 'Không tìm thấy đơn xin nghỉ.'
             });
+        }
+
+        // Gửi thông báo cho nhân viên về kết quả duyệt đơn
+        try {
+            const donXinNghi = result.rows[0];
+            const trangThaiStr = status === 'approved' ? 'chấp thuận' : 'từ chối';
+            await createNotificationHelper(
+                donXinNghi.id_nguoi_dung,
+                "Kết quả đơn xin nghỉ 📝",
+                `Đơn xin nghỉ phép của bạn đã bị ${trangThaiStr}. Vui lòng kiểm tra lại.`,
+                "LEAVE_STATUS"
+            );
+        } catch (notiErr) {
+            console.error('Lỗi khi gửi thông báo kết quả đơn xin nghỉ:', notiErr.message);
         }
 
         res.status(200).json({
