@@ -71,7 +71,7 @@ CREATE TABLE NHAN_VIEN (
     ngay_sinh DATE,
     so_dien_thoai VARCHAR(10),
     dia_chi VARCHAR(255),
-    du_lieu_khuon_mat CHAR(255), -- Đặt độ dài cho CHAR để chứa dữ liệu (hoặc có thể dùng TEXT tuỳ hệ quản trị)
+    du_lieu_khuon_mat TEXT, -- Chuyển sang TEXT vì chứa array JSON rất lớn
     id_tai_khoan VARCHAR(8),
     id_phong_ban VARCHAR(8),
     fcm_token VARCHAR(255)
