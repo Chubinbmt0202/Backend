@@ -73,7 +73,8 @@ CREATE TABLE NHAN_VIEN (
     dia_chi VARCHAR(255),
     du_lieu_khuon_mat CHAR(255), -- Đặt độ dài cho CHAR để chứa dữ liệu (hoặc có thể dùng TEXT tuỳ hệ quản trị)
     id_tai_khoan VARCHAR(8),
-    id_phong_ban VARCHAR(8)
+    id_phong_ban VARCHAR(8),
+    fcm_token VARCHAR(255)
 );
 
 -- 7. Bảng Loại Phép

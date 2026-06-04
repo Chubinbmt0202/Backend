@@ -1,6 +1,7 @@
 import pool from '../config/db.js';
 import admin from '../config/firebase.js';
 import { generateId } from '../utils/idGenerator.js';
+import { sendPushNotification } from '../utils/notification.js';
 
 // Hàm nội bộ để tạo thông báo (sử dụng trong hệ thống và API)
 export const createNotificationHelper = async (employeeId, title, content, type = 'SYSTEM') => {
@@ -30,6 +31,25 @@ export const createNotificationHelper = async (employeeId, title, content, type 
             console.log(`🔥 Đã đồng bộ thông báo realtime cho nhân viên ${employeeId}: ${title}`);
         } catch (fbErr) {
             console.error('Lỗi khi ghi thông báo lên Firebase:', fbErr.message);
+        }
+
+        // 3. Gửi Push Notification qua FCM nếu nhân viên có fcm_token
+        try {
+            const empQuery = `SELECT fcm_token FROM NHAN_VIEN WHERE id_nhan_vien = $1 OR id_tai_khoan = $1`;
+            const empResult = await pool.query(empQuery, [employeeId]);
+            const fcmToken = empResult.rows[0]?.fcm_token;
+
+            if (fcmToken) {
+                await sendPushNotification(fcmToken, title, content, {
+                    notificationId: id.toString(),
+                    type: type.toString()
+                });
+                console.log(`📲 Đã gửi Push Notification FCM thành công tới nhân viên ${employeeId}`);
+            } else {
+                console.log(`⚠️ Nhân viên ${employeeId} không có fcm_token để gửi Push Notification.`);
+            }
+        } catch (fcmErr) {
+            console.error('Lỗi khi gửi Push Notification qua FCM:', fcmErr.message);
         }
 
         return newNotification;
