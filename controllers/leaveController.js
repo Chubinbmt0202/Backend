@@ -130,7 +130,7 @@ export const createLeaveRequest = async (req, res) => {
             const usedDays = parseInt(usedDaysRes.rows[0].used_days || '0', 10);
 
             if (usedDays + requestedDays > maxDays) {
-                return res.status(400).json({ success: false, message: \`Loại phép này chỉ được nghỉ tối đa \${maxDays} ngày/năm. Bạn đã dùng \${usedDays} ngày và đang xin thêm \${requestedDays} ngày.\` });
+                return res.status(400).json({ success: false, message: `Loại phép này chỉ được nghỉ tối đa ${maxDays} ngày/năm. Bạn đã dùng ${usedDays} ngày và đang xin thêm ${requestedDays} ngày.` });
             }
         }
 
