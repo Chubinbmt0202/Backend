@@ -82,7 +82,59 @@ export const createLeaveRequest = async (req, res) => {
         const dbFromDate = formatDateForDB(fromDate);
         const dbToDate = formatDateForDB(toDate);
 
-        // 4. Generate ID and Insert
+        // 4. Validate leave limits
+        const startDate = new Date(dbFromDate);
+        const endDate = new Date(dbToDate);
+        const requestedDays = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
+
+        if (requestedDays <= 0) {
+            return res.status(400).json({ success: false, message: 'Ngày bắt đầu và kết thúc không hợp lệ.' });
+        }
+
+        const typeLimitQuery = await pool.query('SELECT so_ngay_toi_da FROM LOAI_PHEP WHERE id_loai_phep = $1', [id_loai_phep]);
+        const maxDays = typeLimitQuery.rows[0]?.so_ngay_toi_da || 0;
+
+        if (id_loai_phep === 'LP001') {
+            // Phép hàng tháng: 1 day per month max
+            const currentMonth = startDate.getMonth() + 1;
+            const currentYear = startDate.getFullYear();
+
+            const checkQuery = `
+                SELECT SUM(ngay_ket_thuc - ngay_bat_dau + 1) as used_days
+                FROM DON_XIN_NGHI
+                WHERE id_nguoi_dung = $1
+                  AND id_loai_phep = $2
+                  AND trang_thai = true
+                  AND EXTRACT(MONTH FROM ngay_bat_dau) = $3
+                  AND EXTRACT(YEAR FROM ngay_bat_dau) = $4
+            `;
+            const usedDaysRes = await pool.query(checkQuery, [id_nhan_vien, id_loai_phep, currentMonth, currentYear]);
+            const usedDays = parseInt(usedDaysRes.rows[0].used_days || '0', 10);
+            
+            if (usedDays + requestedDays > 1) {
+                return res.status(400).json({ success: false, message: 'Phép hàng tháng chỉ được nghỉ 1 ngày/tháng và bạn đã sử dụng hoặc đăng ký vượt quá hạn mức.' });
+            }
+        } else {
+            // Các loại phép khác: check yearly limit
+            const currentYear = startDate.getFullYear();
+            
+            const checkQuery = `
+                SELECT SUM(ngay_ket_thuc - ngay_bat_dau + 1) as used_days
+                FROM DON_XIN_NGHI
+                WHERE id_nguoi_dung = $1
+                  AND id_loai_phep = $2
+                  AND trang_thai = true
+                  AND EXTRACT(YEAR FROM ngay_bat_dau) = $3
+            `;
+            const usedDaysRes = await pool.query(checkQuery, [id_nhan_vien, id_loai_phep, currentYear]);
+            const usedDays = parseInt(usedDaysRes.rows[0].used_days || '0', 10);
+
+            if (usedDays + requestedDays > maxDays) {
+                return res.status(400).json({ success: false, message: \`Loại phép này chỉ được nghỉ tối đa \${maxDays} ngày/năm. Bạn đã dùng \${usedDays} ngày và đang xin thêm \${requestedDays} ngày.\` });
+            }
+        }
+
+        // 5. Generate ID and Insert
         const id_don_xin_nghi = generateId('DN');
 
         const query = `
