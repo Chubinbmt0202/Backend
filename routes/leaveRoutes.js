@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { createLeaveRequest, getEmployeeLeaves, getAllLeaveRequests, updateLeaveStatus } from '../controllers/leaveController.js';
+import { createLeaveRequest, getEmployeeLeaves, getAllLeaveRequests, updateLeaveStatus, getAllLeaveTypes, updateLeaveType } from '../controllers/leaveController.js';
 
 
 const router = express.Router();
@@ -24,5 +24,10 @@ router.get('/history/:employeeId', getEmployeeLeaves);
 // PATCH /api/leave/update-status
 router.patch('/update-status', updateLeaveStatus);
 
+// GET /api/leave/types
+router.get('/types', getAllLeaveTypes);
+
+// PUT /api/leave/types/:id
+router.put('/types/:id', updateLeaveType);
 
 export default router;

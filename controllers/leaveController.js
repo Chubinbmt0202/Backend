@@ -297,3 +297,64 @@ export const updateLeaveStatus = async (req, res) => {
     }
 };
 
+export const getAllLeaveTypes = async (req, res) => {
+    try {
+        const query = `SELECT * FROM LOAI_PHEP ORDER BY id_loai_phep ASC`;
+        const result = await pool.query(query);
+
+        res.status(200).json({
+            success: true,
+            data: result.rows
+        });
+    } catch (error) {
+        console.error('Lỗi khi lấy danh sách loại phép:', error.message);
+        res.status(500).json({
+            success: false,
+            message: 'Lỗi server khi lấy danh sách loại phép.'
+        });
+    }
+};
+
+export const updateLeaveType = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { ten_phep, so_ngay_toi_da, co_luong, mo_ta } = req.body;
+
+        if (!id || !ten_phep || so_ngay_toi_da === undefined) {
+            return res.status(400).json({
+                success: false,
+                message: 'Vui lòng cung cấp đủ thông tin (ten_phep, so_ngay_toi_da).'
+            });
+        }
+
+        const query = `
+            UPDATE LOAI_PHEP
+            SET ten_phep = $1, so_ngay_toi_da = $2, co_luong = $3, mo_ta = $4
+            WHERE id_loai_phep = $5
+            RETURNING *;
+        `;
+        const values = [ten_phep, so_ngay_toi_da, co_luong || false, mo_ta || '', id];
+        
+        const result = await pool.query(query, values);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Không tìm thấy loại phép.'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Cập nhật loại phép thành công.',
+            data: result.rows[0]
+        });
+    } catch (error) {
+        console.error('Lỗi khi cập nhật loại phép:', error.message);
+        res.status(500).json({
+            success: false,
+            message: 'Lỗi server khi cập nhật loại phép.'
+        });
+    }
+};
+

@@ -3,7 +3,7 @@ import bcrypt from "bcrypt";
 
 export const login = async (req, res) => {
   try {
-    const { username, password, wifi_bssid } = req.body;
+    const { username, password, wifi_bssid, device_info } = req.body;
     console.log(`\n[LOGIN ATTEMPT] User: ${username} | BSSID: ${wifi_bssid || "N/A"}`);
     console.log("Full Login Body:", req.body);
 
@@ -95,6 +95,23 @@ export const login = async (req, res) => {
     req.session.userId = user.id_tai_khoan;
     req.session.roleId = user.id_vai_tro;
     req.session.roleName = user.ten_vai_tro;
+
+    // Lưu thông tin thiết bị (nếu có)
+    if (device_info && device_info.os_name && device_info.model_name) {
+      try {
+        const ipAddress = req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'unknown';
+        const idThietBi = 'TB' + Date.now().toString().slice(-8) + Math.floor(Math.random() * 100);
+        
+        await pool.query(
+          `INSERT INTO THIET_BI_DANG_NHAP (id_thiet_bi, id_tai_khoan, ten_thiet_bi, he_dieu_hanh, dia_chi_ip) 
+           VALUES ($1, $2, $3, $4, $5)`,
+          [idThietBi, user.id_tai_khoan, device_info.model_name, `${device_info.os_name} ${device_info.os_version}`, ipAddress]
+        );
+        console.log(`[DEVICE LOG] Lưu thông tin thiết bị thành công cho tài khoản ${user.ten_dang_nhap}: ${device_info.model_name}`);
+      } catch (err) {
+        console.error("[DEVICE LOG ERROR] Không thể lưu thông tin thiết bị:", err.message);
+      }
+    }
 
     res.status(200).json({
       success: true,

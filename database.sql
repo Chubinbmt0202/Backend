@@ -14,6 +14,8 @@ DROP TABLE IF EXISTS CA_LAM_VIEC CASCADE;
 DROP TABLE IF EXISTS DIEM_CHAM_CONG CASCADE;
 DROP TABLE IF EXISTS WIFI_VAN_PHONG CASCADE;
 DROP TABLE IF EXISTS VAN_PHONG CASCADE;
+DROP TABLE IF EXISTS THIET_BI_DANG_NHAP CASCADE;
+DROP TABLE IF EXISTS DON_DANG_KY_OT CASCADE;
 
 -- ========================================================
 -- 1. TẠO CÁC BẢNG (TABLES)
@@ -169,6 +171,28 @@ CREATE TABLE THONG_BAO (
     ngay_tao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 15. Bảng Thiết Bị Đăng Nhập
+CREATE TABLE THIET_BI_DANG_NHAP (
+    id_thiet_bi VARCHAR(15) PRIMARY KEY,
+    id_tai_khoan VARCHAR(8) NOT NULL,
+    ten_thiet_bi VARCHAR(255),
+    he_dieu_hanh VARCHAR(255),
+    dia_chi_ip VARCHAR(50),
+    thoi_gian_dang_nhap TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 16. Bảng Đăng Ký Tăng Ca (OT)
+CREATE TABLE DON_DANG_KY_OT (
+    id_don_ot VARCHAR(8) PRIMARY KEY,
+    id_nhan_vien VARCHAR(8) NOT NULL,
+    ngay_dang_ky_ot DATE NOT NULL,
+    gio_bat_dau TIME NOT NULL,
+    gio_ket_thuc_du_kien TIME NOT NULL,
+    ly_do VARCHAR(255),
+    trang_thai VARCHAR(20) DEFAULT 'CHO_DUYET',
+    ngay_tao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- ========================================================
 -- PHẦN 2: TẠO CÁC RÀNG BUỘC KHÓA NGOẠI (FOREIGN KEYS)
 -- ========================================================
@@ -225,6 +249,14 @@ ADD CONSTRAINT FK_WiFi_VanPhong FOREIGN KEY (id_van_phong) REFERENCES VAN_PHONG(
 -- Thông báo
 ALTER TABLE THONG_BAO 
 ADD CONSTRAINT FK_ThongBao_NhanVien FOREIGN KEY (id_nhan_vien) REFERENCES NHAN_VIEN(id_nhan_vien) ON DELETE CASCADE;
+
+-- Thiết bị đăng nhập
+ALTER TABLE THIET_BI_DANG_NHAP 
+ADD CONSTRAINT FK_ThietBi_TaiKhoan FOREIGN KEY (id_tai_khoan) REFERENCES TAI_KHOAN(id_tai_khoan) ON DELETE CASCADE;
+
+-- Đơn đăng ký OT
+ALTER TABLE DON_DANG_KY_OT 
+ADD CONSTRAINT FK_DonOT_NhanVien FOREIGN KEY (id_nhan_vien) REFERENCES NHAN_VIEN(id_nhan_vien) ON DELETE CASCADE;
 
 -- ========================================================
 -- PHẦN 3: DỮ LIỆU MẪU (SAMPLE DATA)

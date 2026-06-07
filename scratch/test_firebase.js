@@ -1,5 +1,5 @@
 import dotenv from 'dotenv';
-dotenv.config({ path: 'c:/Users/Administrator/Desktop/New folder/Backend/.env' });
+dotenv.config();
 
 async function testConnection() {
   console.log('--- TESTING ACTIVE FIREBASE READ/WRITE ---');

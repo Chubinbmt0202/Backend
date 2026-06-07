@@ -16,6 +16,7 @@ import uploadRoutes from './routes/uploadRoutes.js'; // Import route upload ản
 import officeRoutes from './routes/officeRoutes.js'; // Import route văn phòng và GPS
 import leaveRoutes from './routes/leaveRoutes.js'; // Import route đơn xin nghỉ
 import notificationRoutes from './routes/notificationRoutes.js'; // Import route thông báo
+import otRoutes from './routes/otRoutes.js'; // Import route tăng ca
 
 
 const app = express();
@@ -61,9 +62,44 @@ app.use('/api/upload', uploadRoutes); // Route upload file lên Supabase
 app.use('/api/offices', officeRoutes); // Route quản lý văn phòng và định vị GPS
 app.use('/api/leave', leaveRoutes); // Route quản lý đơn xin nghỉ
 app.use('/api/notifications', notificationRoutes); // Route gửi thông báo push
+app.use('/api/ot', otRoutes); // Route đăng ký OT
 
 
 // Lắng nghe ở cổng (port) đã định
 app.listen(port, () => {
   console.log(`Server đang chạy tại http://:${port}`);
 });
+
+// Cron job: Tự động xóa thông báo cũ hơn 30 phút
+setInterval(async () => {
+  try {
+    const query = `
+      SELECT id_thong_bao, id_nhan_vien 
+      FROM THONG_BAO 
+      WHERE ngay_tao < NOW() - INTERVAL '30 minutes'
+    `;
+    const result = await pool.query(query);
+    
+    if (result.rowCount > 0) {
+      // 1. Xóa trên Firebase Realtime Database
+      for (const row of result.rows) {
+        try {
+          // Lấy instance admin đã được export từ config/firebase.js.
+          // Do file index.js có import './config/firebase.js' nhưng không lưu vào biến,
+          // ta cần import admin một cách rõ ràng.
+          const { default: admin } = await import('./config/firebase.js');
+          await admin.database().ref(`notifications/${row.id_nhan_vien}/${row.id_thong_bao}`).remove();
+        } catch (fbErr) {
+          console.error(`Lỗi xóa thông báo ${row.id_thong_bao} trên Firebase:`, fbErr.message);
+        }
+      }
+      
+      // 2. Xóa trên PostgreSQL
+      const ids = result.rows.map(r => r.id_thong_bao);
+      await pool.query(`DELETE FROM THONG_BAO WHERE id_thong_bao = ANY($1)`, [ids]);
+      console.log(`🧹 Đã tự động xóa ${result.rowCount} thông báo cũ hơn 30 phút.`);
+    }
+  } catch (error) {
+    console.error('Lỗi khi tự động xóa thông báo:', error.message);
+  }
+}, 60 * 1000); // Chạy kiểm tra mỗi 1 phút
