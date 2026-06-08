@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import admin from '../config/firebase.js';
 import { generateId } from '../utils/idGenerator.js';
 import { createNotificationHelper } from './notificationController.js';
 
@@ -21,6 +22,49 @@ export const createOTRequest = async (req, res) => {
             RETURNING *;
         `;
         const result = await pool.query(query, [idDonOt, employeeId, otDate, startTime, expectedEndTime, reason || '']);
+        
+        // Gửi thông báo cho tất cả Admin/HR và đồng bộ Firebase Realtime DB
+        try {
+            const getHrQuery = `
+                SELECT nv.id_nhan_vien 
+                FROM NHAN_VIEN nv
+                JOIN TAI_KHOAN tk ON nv.id_tai_khoan = tk.id_tai_khoan
+                JOIN VAI_TRO vt ON tk.id_vai_tro = vt.id_vai_tro
+                WHERE vt.ten_vai_tro ILIKE '%Admin%' OR vt.ten_vai_tro ILIKE '%HR%' OR vt.ten_vai_tro ILIKE '%Nhân sự%'
+            `;
+            const hrResult = await pool.query(getHrQuery);
+            
+            // Lấy tên người gửi
+            const empQuery = `SELECT ho_va_ten FROM NHAN_VIEN WHERE id_nhan_vien = $1`;
+            const empResult = await pool.query(empQuery, [employeeId]);
+            const empName = empResult.rows[0]?.ho_va_ten || "Một nhân viên";
+
+            for (const hr of hrResult.rows) {
+                await createNotificationHelper(
+                    hr.id_nhan_vien,
+                    "Đơn xin tăng ca mới 📩",
+                    `${empName} vừa gửi một đơn đăng ký tăng ca. Vui lòng kiểm tra và duyệt.`,
+                    "OVERTIME_REQUEST"
+                );
+            }
+
+            // Đồng bộ lên kênh admin_notifications cho Web App (AdminTime)
+            const notifId = generateId('TB');
+            await admin.database().ref(`admin_notifications/${notifId}`).set({
+                id_thong_bao: notifId,
+                id_nhan_vien: employeeId,
+                ho_ten_nhan_vien: empName,
+                tieu_de: "Đơn xin tăng ca mới 📩",
+                noi_dung: `${empName} vừa gửi một đơn đăng ký tăng ca. Vui lòng kiểm tra và duyệt.`,
+                loai_thong_bao: "OVERTIME_REQUEST",
+                da_doc: false,
+                ngay_tao: Date.now()
+            });
+            console.log(`🔥 Đã đồng bộ thông báo tăng ca lên kênh admin_notifications cho Web App`);
+
+        } catch (notiErr) {
+            console.error('Lỗi khi gửi thông báo đơn xin tăng ca cho HR:', notiErr.message);
+        }
         
         res.status(201).json({
             success: true,
