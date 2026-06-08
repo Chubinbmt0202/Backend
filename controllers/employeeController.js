@@ -125,7 +125,8 @@ export const getEmployees = async (req, res) => {
                     vt.ten_vai_tro AS role_name,
                     tk.trang_thai,
                     tk.ngay_tao AS created_at,
-                    nv.du_lieu_khuon_mat
+                    nv.du_lieu_khuon_mat,
+                    nv.hinh_anh
                 FROM NHAN_VIEN nv
                 LEFT JOIN TAI_KHOAN tk ON tk.id_tai_khoan = nv.id_tai_khoan
                 LEFT JOIN VAI_TRO vt ON vt.id_vai_tro = tk.id_vai_tro
@@ -176,7 +177,8 @@ export const getEmployeesByDepartment = async (req, res) => {
                     vt.ten_vai_tro AS role_name,
                     tk.trang_thai,
                     tk.ngay_tao AS created_at,
-                    nv.du_lieu_khuon_mat
+                    nv.du_lieu_khuon_mat,
+                    nv.hinh_anh
                 FROM NHAN_VIEN nv
                 LEFT JOIN TAI_KHOAN tk ON tk.id_tai_khoan = nv.id_tai_khoan
                 LEFT JOIN VAI_TRO vt ON vt.id_vai_tro = tk.id_vai_tro
@@ -230,7 +232,8 @@ export const getEmployeeByID = async (req, res) => {
                 vt.ten_vai_tro AS role_name,
                 tk.trang_thai,
                 tk.ngay_tao AS created_at,
-                nv.du_lieu_khuon_mat
+                nv.du_lieu_khuon_mat,
+                nv.hinh_anh
             FROM NHAN_VIEN nv
             LEFT JOIN TAI_KHOAN tk ON tk.id_tai_khoan = nv.id_tai_khoan
             LEFT JOIN VAI_TRO vt ON vt.id_vai_tro = tk.id_vai_tro
@@ -406,7 +409,8 @@ export const updateEmployee = async (req, res) => {
                     vt.ten_vai_tro AS role_name,
                     tk.trang_thai,
                     tk.ngay_tao AS created_at,
-                    nv.du_lieu_khuon_mat
+                    nv.du_lieu_khuon_mat,
+                    nv.hinh_anh
                 FROM NHAN_VIEN nv
                 LEFT JOIN TAI_KHOAN tk ON tk.id_tai_khoan = nv.id_tai_khoan
                 LEFT JOIN VAI_TRO vt ON vt.id_vai_tro = tk.id_vai_tro

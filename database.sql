@@ -76,7 +76,8 @@ CREATE TABLE NHAN_VIEN (
     du_lieu_khuon_mat TEXT, -- Chuyển sang TEXT vì chứa array JSON rất lớn
     id_tai_khoan VARCHAR(8),
     id_phong_ban VARCHAR(8),
-    fcm_token VARCHAR(255)
+    fcm_token VARCHAR(255),
+    hinh_anh VARCHAR(255)
 );
 
 -- 7. Bảng Loại Phép

@@ -47,6 +47,7 @@ export const login = async (req, res) => {
           tk.trang_thai,
           nv.id_nhan_vien,
           nv.ho_va_ten,
+          nv.hinh_anh,
           (nv.du_lieu_khuon_mat IS NOT NULL) as is_face_updated
         FROM TAI_KHOAN tk
         LEFT JOIN VAI_TRO vt ON vt.id_vai_tro = tk.id_vai_tro
@@ -124,7 +125,8 @@ export const login = async (req, res) => {
         id_vai_tro: user.id_vai_tro,
         ten_vai_tro: user.ten_vai_tro,
         id_nhan_vien: user.id_nhan_vien,
-        ho_va_ten: user.ho_va_ten
+        ho_va_ten: user.ho_va_ten,
+        hinh_anh: user.hinh_anh
       },
     });
 

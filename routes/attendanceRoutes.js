@@ -125,12 +125,12 @@ router.post('/testRegister', async (req, res) => {
         const embeddingJSON = JSON.stringify(embeddings);
         const updateQuery = `
             UPDATE NHAN_VIEN
-            SET du_lieu_khuon_mat = $1::jsonb
+            SET du_lieu_khuon_mat = $1::jsonb, hinh_anh = $3
             WHERE id_nhan_vien = $2 OR id_tai_khoan = $2
-            RETURNING id_nhan_vien, ho_va_ten;
+            RETURNING id_nhan_vien, ho_va_ten, hinh_anh;
         `;
 
-        const result = await pool.query(updateQuery, [embeddingJSON, userId]);
+        const result = await pool.query(updateQuery, [embeddingJSON, userId, urls[0]]);
 
         if (result.rowCount === 0) {
             return res.status(404).json({ success: false, message: "Không tìm thấy user" });
