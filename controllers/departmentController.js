@@ -4,14 +4,16 @@ import { generateId } from '../utils/idGenerator.js';
 // Thêm phòng ban mới
 export const addDepartment = async (req, res) => {
     try {
-        const { mo_ta, id_nguoi_dung } = req.body;
+        const { ten_phong_ban, mo_ta, mo_ta_chuc_nang, id_nguoi_dung } = req.body;
         const id_phong_ban = generateId('PB');
         
         console.log("Dữ liệu nhận được khi thêm phòng ban:", req.body);
 
+        const final_mo_ta = mo_ta_chuc_nang || mo_ta || ten_phong_ban;
+
         const result = await pool.query(
-            'INSERT INTO PHONG_BAN (id_phong_ban, mo_ta, ngay_tao, id_nguoi_dung) VALUES ($1, $2, CURRENT_TIMESTAMP, $3) RETURNING *',
-            [id_phong_ban, mo_ta || null, id_nguoi_dung || null]
+            'INSERT INTO PHONG_BAN (id_phong_ban, ten_phong_ban, mo_ta, ngay_tao, id_nguoi_dung) VALUES ($1, $2, $3, CURRENT_TIMESTAMP, $4) RETURNING *',
+            [id_phong_ban, ten_phong_ban || null, final_mo_ta || null, id_nguoi_dung || null]
         );
 
         res.status(201).json({ success: true, data: result.rows[0] });
