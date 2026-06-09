@@ -1063,3 +1063,49 @@ export const updateFcmToken = async (req, res) => {
         });
     }
 };
+
+// Thay đổi mật khẩu nhân viên
+export const changePassword = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { new_password } = req.body;
+
+        if (!id || !new_password) {
+            return res.status(400).json({
+                success: false,
+                message: 'Vui lòng cung cấp ID nhân viên và mật khẩu mới.'
+            });
+        }
+
+        const existing = await pool.query(
+            `SELECT id_tai_khoan FROM NHAN_VIEN WHERE id_nhan_vien = $1 LIMIT 1`,
+            [id]
+        );
+
+        if (existing.rowCount === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Không tìm thấy nhân viên với ID này.'
+            });
+        }
+
+        const id_tai_khoan = existing.rows[0].id_tai_khoan;
+        const hashedPassword = await bcrypt.hash(new_password, 10);
+
+        await pool.query(
+            `UPDATE TAI_KHOAN SET mat_khau = $1 WHERE id_tai_khoan = $2`,
+            [hashedPassword, id_tai_khoan]
+        );
+
+        res.status(200).json({
+            success: true,
+            message: 'Đổi mật khẩu thành công!'
+        });
+    } catch (error) {
+        console.error('Lỗi khi đổi mật khẩu:', error.message);
+        res.status(500).json({
+            success: false,
+            message: 'Lỗi server, vui lòng thử lại sau.'
+        });
+    }
+};
