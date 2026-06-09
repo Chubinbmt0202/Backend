@@ -873,18 +873,62 @@ export const getEmployeeDashboard = async (req, res) => {
         const employee = empResult.rows[0];
         const idNhanVien = employee.id_nhan_vien;
 
-        // 2. Lấy thông tin chấm công hôm nay
-        const todayAttendanceQuery = `
-            SELECT gio_vao, gio_ra, ghi_chu
-            FROM CHAM_CONG
-            WHERE id_nhan_vien = $1 AND gio_vao::date = CURRENT_DATE
-            ORDER BY gio_vao DESC
+        // 2. Lấy đơn đăng ký OT hôm nay
+        const otQuery = `
+            SELECT id_don_ot, ngay_dang_ky_ot, gio_bat_dau, gio_ket_thuc_du_kien, ly_do, trang_thai
+            FROM DON_DANG_KY_OT
+            WHERE id_nhan_vien = $1 AND ngay_dang_ky_ot = CURRENT_DATE
             LIMIT 1
         `;
-        const todayAttendanceResult = await pool.query(todayAttendanceQuery, [idNhanVien]);
-        const todayAttendance = todayAttendanceResult.rows[0] || null;
+        const otResult = await pool.query(otQuery, [idNhanVien]);
+        const todayOtRequest = otResult.rows[0] || null;
 
-        // 3. Lấy lịch sử chấm công (10 lần gần nhất)
+        // 3. Lấy toàn bộ thông tin chấm công hôm nay
+        const todayAttendanceQuery = `
+            SELECT id_cham_cong, gio_vao, gio_ra, ghi_chu, url_anh
+            FROM CHAM_CONG
+            WHERE id_nhan_vien = $1 AND gio_vao::date = CURRENT_DATE
+            ORDER BY gio_vao ASC
+        `;
+        const todayAttendanceResult = await pool.query(todayAttendanceQuery, [idNhanVien]);
+        const todayLogs = todayAttendanceResult.rows;
+
+        let todayAttendance = null;
+        let todayOtAttendance = null;
+
+        if (todayOtRequest && todayOtRequest.trang_thai === 'DA_DUYET') {
+            const otStartParts = todayOtRequest.gio_bat_dau.split(':');
+            const otStartHour = parseInt(otStartParts[0], 10);
+            const otStartMin = parseInt(otStartParts[1], 10);
+            const otStartMinutes = otStartHour * 60 + otStartMin;
+
+            const normalLogs = [];
+            const otLogs = [];
+
+            todayLogs.forEach(log => {
+                const logDate = new Date(log.gio_vao);
+                const logMinutes = logDate.getHours() * 60 + logDate.getMinutes();
+
+                if (logMinutes >= otStartMinutes - 45 || (normalLogs.length > 0 && logMinutes >= 16 * 60 + 30)) {
+                    otLogs.push(log);
+                } else {
+                    normalLogs.push(log);
+                }
+            });
+
+            if (normalLogs.length > 0) {
+                todayAttendance = normalLogs[0];
+            }
+            if (otLogs.length > 0) {
+                todayOtAttendance = otLogs[0];
+            }
+        } else {
+            if (todayLogs.length > 0) {
+                todayAttendance = todayLogs[0];
+            }
+        }
+
+        // 4. Lấy lịch sử chấm công (10 lần gần nhất)
         const historyQuery = `
             SELECT gio_vao, gio_ra, ghi_chu, url_anh
             FROM CHAM_CONG
@@ -894,16 +938,32 @@ export const getEmployeeDashboard = async (req, res) => {
         `;
         const historyResult = await pool.query(historyQuery, [idNhanVien]);
 
-        // 4. Lấy đơn xin phép của nhân viên
+        // 5. Lấy đơn xin phép của nhân viên
         const leaveQuery = `
+            SELECT dxn.id_don_xin_nghi, dxn.ngay_bat_dau, dxn.ngay_ket_thuc, dxn.ly_do, dxn.trang_thai, lp.ten_phep, dxn.ngay_tao
+            FROM DON_DANG_KY_OT
+            WHERE id_nhan_vien = $1
+            UNION ALL
+            SELECT dxn.id_don_xin_nghi, dxn.ngay_bat_dau, dxn.ngay_ket_thuc, dxn.ly_do, dxn.trang_thai::varchar, lp.ten_phep, dxn.ngay_tao
+            FROM DON_XIN_NGHI dxn
+            LEFT JOIN LOAI_PHEP lp ON dxn.id_loai_phep = lp.id_loai_phep
+            WHERE dxn.id_nguoi_dung = $1
+            ORDER BY ngay_tao DESC
+            LIMIT 10
+        `;
+        // Wait, the union query might have issues with column names and types. Let's keep the original leaveQuery but order by ngay_tao.
+        // Wait, what did leaveQuery originally select?
+        // Let's check lines 898-905 of employeeController.js:
+        // `SELECT dxn.id_don_xin_nghi, dxn.ngay_bat_dau, dxn.ngay_ket_thuc, dxn.ly_do, dxn.trang_thai, lp.ten_phep, dxn.ngay_tao FROM DON_XIN_NGHI dxn ...`
+        // Let's keep it exactly as it was to avoid breaking anything in leave request display!
+        const leaveResult = await pool.query(`
             SELECT dxn.id_don_xin_nghi, dxn.ngay_bat_dau, dxn.ngay_ket_thuc, dxn.ly_do, dxn.trang_thai, lp.ten_phep, dxn.ngay_tao
             FROM DON_XIN_NGHI dxn
             LEFT JOIN LOAI_PHEP lp ON dxn.id_loai_phep = lp.id_loai_phep
             WHERE dxn.id_nguoi_dung = $1
             ORDER BY dxn.ngay_tao DESC
             LIMIT 10
-        `;
-        const leaveResult = await pool.query(leaveQuery, [idNhanVien]);
+        `, [idNhanVien]);
 
         res.status(200).json({
             success: true,
@@ -915,6 +975,8 @@ export const getEmployeeDashboard = async (req, res) => {
                     id_phong_ban: employee.id_phong_ban
                 },
                 today_attendance: todayAttendance,
+                today_ot_attendance: todayOtAttendance,
+                today_ot_request: todayOtRequest,
                 recent_attendance_history: historyResult.rows,
                 leave_requests: leaveResult.rows
             }

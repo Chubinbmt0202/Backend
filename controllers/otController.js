@@ -166,3 +166,28 @@ export const updateOTStatus = async (req, res) => {
         });
     }
 };
+
+export const getEmployeeOTRequests = async (req, res) => {
+    try {
+        const { employeeId } = req.params;
+
+        const query = `
+            SELECT * FROM DON_DANG_KY_OT
+            WHERE id_nhan_vien = $1
+            ORDER BY ngay_dang_ky_ot DESC, gio_bat_dau DESC
+        `;
+
+        const result = await pool.query(query, [employeeId]);
+
+        res.status(200).json({
+            success: true,
+            data: result.rows
+        });
+    } catch (error) {
+        console.error('Lỗi khi lấy lịch sử đăng ký OT:', error.message);
+        res.status(500).json({
+            success: false,
+            message: 'Lỗi server khi lấy lịch sử đăng ký OT.'
+        });
+    }
+};
