@@ -121,6 +121,35 @@ router.post('/testRegister', async (req, res) => {
             });
         }
 
+        // Kiểm tra trùng lặp khuôn mặt với nhân viên khác
+        const checkQuery = `
+            SELECT id_nhan_vien, ho_va_ten, du_lieu_khuon_mat
+            FROM NHAN_VIEN
+            WHERE du_lieu_khuon_mat IS NOT NULL
+              AND id_nhan_vien != $1
+              AND id_tai_khoan != $1
+        `;
+        const checkResult = await pool.query(checkQuery, [userId]);
+        
+        for (const row of checkResult.rows) {
+            const savedEmbeddings = typeof row.du_lieu_khuon_mat === 'string'
+                ? JSON.parse(row.du_lieu_khuon_mat)
+                : row.du_lieu_khuon_mat;
+            
+            if (Array.isArray(savedEmbeddings)) {
+                for (const newEmb of embeddings) {
+                    const distances = savedEmbeddings.map(savedEmb => euclideanDistance(savedEmb, newEmb));
+                    const minDistance = Math.min(...distances);
+                    if (minDistance <= 10.0) { // THRESHOLD = 10.0 cho Facenet
+                        return res.status(400).json({
+                            success: false,
+                            message: `Khuôn mặt này đã được đăng ký bởi nhân viên ${row.ho_va_ten} (${row.id_nhan_vien}).`
+                        });
+                    }
+                }
+            }
+        }
+
         // Lưu vào Database (NHAN_VIEN.du_lieu_khuon_mat)
         const embeddingJSON = JSON.stringify(embeddings);
         const updateQuery = `

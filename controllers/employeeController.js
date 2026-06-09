@@ -568,6 +568,31 @@ export const uploadEmployeeFace = async (req, res) => {
             }
         }
 
+        // 3.5. Kiểm tra trùng lặp khuôn mặt với nhân viên khác
+        const checkQuery = `
+            SELECT id_nhan_vien, ho_va_ten, du_lieu_khuon_mat
+            FROM NHAN_VIEN
+            WHERE du_lieu_khuon_mat IS NOT NULL
+              AND id_nhan_vien != $1
+        `;
+        const checkResult = await pool.query(checkQuery, [userId]);
+
+        for (const row of checkResult.rows) {
+            const storedEmbeddings = normalizeEmbedding(row.du_lieu_khuon_mat);
+            if (Array.isArray(storedEmbeddings)) {
+                for (const newVector of embedding) {
+                    const match = findBestMatch(newVector, storedEmbeddings);
+                    const minSimilarity = 80; // Ngưỡng nhận diện (80%)
+                    if (match.bestSimilarity >= minSimilarity) {
+                        return res.status(400).json({
+                            success: false,
+                            message: `Khuôn mặt này đã được đăng ký bởi nhân viên ${row.ho_va_ten} (${row.id_nhan_vien}).`
+                        });
+                    }
+                }
+            }
+        }
+
         // 4. Lưu vào Database (PostgreSQL)
         // PostgreSQL cột JSONB yêu cầu truyền vào một chuỗi JSON
         const embeddingJSON = JSON.stringify(embedding);
