@@ -11,7 +11,8 @@ import {
     recognizeEmployeeFace,
     getEmployeesByDepartment,
     getEmployeeDashboard,
-    updateFcmToken
+    updateFcmToken,
+    changePassword
 } from '../controllers/employeeController.js';
 
 const router = express.Router();
@@ -21,6 +22,9 @@ router.post('/add', addEmployee);
 
 // Định nghĩa route PUT /api/employees/update/:id để chỉnh sửa nhân viên
 router.put('/update/:id', updateEmployee);
+
+// Định nghĩa route PUT /api/employees/change-password/:id để đổi mật khẩu
+router.put('/change-password/:id', changePassword);
 
 // Định nghĩa route DELETE /api/employees/delete/:id để xoá nhân viên
 router.delete('/delete/:id', deleteEmployee);

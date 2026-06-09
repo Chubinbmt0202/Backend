@@ -361,6 +361,9 @@ export const updateEmployee = async (req, res) => {
         if (date_of_birth) { nvFields.push(`ngay_sinh = $${nvIdx++}`); nvValues.push(date_of_birth); }
         if (address) { nvFields.push(`dia_chi = $${nvIdx++}`); nvValues.push(address); }
         if (department_id) { nvFields.push(`id_phong_ban = $${nvIdx++}`); nvValues.push(department_id); }
+        if (phone_number) { nvFields.push(`so_dien_thoai = $${nvIdx++}`); nvValues.push(phone_number); }
+        if (email) { nvFields.push(`email = $${nvIdx++}`); nvValues.push(email); }
+        if (gender) { nvFields.push(`gioi_tinh = $${nvIdx++}`); nvValues.push(gender); }
 
         if (nvFields.length > 0) {
             nvValues.push(id);
@@ -401,6 +404,9 @@ export const updateEmployee = async (req, res) => {
                     nv.ho_va_ten AS full_name,
                     nv.ngay_sinh AS date_of_birth,
                     nv.dia_chi AS address,
+                    nv.so_dien_thoai AS phone_number,
+                    nv.email,
+                    nv.gioi_tinh AS gender,
                     nv.id_phong_ban AS department_id,
                     pb.mo_ta AS department_name,
                     tk.id_tai_khoan,
