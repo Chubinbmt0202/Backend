@@ -3,13 +3,28 @@ import {
     getAttendanceStatus,
     getAllAttendance,
     getEmployeeAttendanceHistory,
-    verifyAttendanceFace
+    verifyAttendanceFace,
+    getLateExplanations,
+    getEmployeeLateExplanations,
+    updateLateExplanationStatus
 } from '../controllers/attendanceController.js';
 
 import pool from '../config/db.js';
 import { generateId } from '../utils/idGenerator.js';
+import admin from '../config/firebase.js';
+import { createNotificationHelper } from '../controllers/notificationController.js';
 
 const router = express.Router();
+
+// GET /api/attendance/late-explanations/all - Lấy tất cả giải trình đi trễ (cho HR)
+router.get('/late-explanations/all', getLateExplanations);
+
+// GET /api/attendance/late-explanations/employee/:employeeId - Lấy giải trình đi trễ của 1 nhân viên
+router.get('/late-explanations/employee/:employeeId', getEmployeeLateExplanations);
+
+// PATCH /api/attendance/late-explanations/update-status - Phê duyệt hoặc từ chối giải trình
+router.patch('/late-explanations/update-status', updateLateExplanationStatus);
+
 
 // ==========================================
 // CẤU HÌNH MICROSERVICE
@@ -192,55 +207,9 @@ router.post('/checkAttendance', async (req, res) => {
         }
 
         // ==========================================
-        // 0. KIỂM TRA VỊ TRÍ CHẤM CÔNG (WIFI / GPS)
+        // 0. KIỂM TRA VỊ TRÍ CHẤM CÔNG (WIFI / GPS) - ĐÃ ĐƯỢC LƯỢC BỎ THEO YÊU CẦU
         // ==========================================
-        let isValidLocation = false;
-        let locationNote = '';
-
-        if (!evidence) {
-            return res.status(400).json({ success: false, message: 'Bắt buộc phải có thông tin vị trí (WiFi hoặc GPS) để chấm công.' });
-        }
-
-        const { wifi_bssid, lat, lng } = evidence;
-
-        // Ưu tiên 1: Kiểm tra WiFi
-        if (wifi_bssid) {
-            // Chuyển bssid về chữ thường để so sánh (đề phòng)
-            const wifiQuery = await pool.query(`SELECT ten_wifi FROM WIFI WHERE LOWER(dia_chi_wifi) = LOWER($1)`, [wifi_bssid]);
-            if (wifiQuery.rowCount > 0) {
-                isValidLocation = true;
-                locationNote = `WiFi: ${wifiQuery.rows[0].ten_wifi}`;
-            }
-        }
-
-        // Ưu tiên 2: Kiểm tra khoảng cách GPS nếu WiFi không hợp lệ
-        let closestDistance = null;
-        if (!isValidLocation && lat && lng) {
-            const officeQuery = await pool.query(`SELECT ten_van_phong, kinh_do, vi_do, pham_vi FROM VAN_PHONG`);
-            for (const office of officeQuery.rows) {
-                if (office.vi_do && office.kinh_do) {
-                    const distance = calculateDistance(lat, lng, office.vi_do, office.kinh_do);
-                    
-                    if (closestDistance === null || distance < closestDistance) {
-                        closestDistance = distance;
-                    }
-
-                    if (distance <= (office.pham_vi || 100)) { // Mặc định 100m nếu không có dữ liệu
-                        isValidLocation = true;
-                        locationNote = `GPS: ${office.ten_van_phong} (cách ${Math.round(distance)}m)`;
-                        break; // Thoát vòng lặp vì đã tìm thấy vị trí hợp lệ
-                    }
-                }
-            }
-        }
-
-        if (!isValidLocation) {
-            let errorMsg = 'Vị trí của bạn không nằm trong phạm vi văn phòng. Vui lòng kết nối WiFi công ty hoặc đứng gần văn phòng hơn.';
-            if (closestDistance !== null) {
-                errorMsg += ` Hiện bạn đang cách văn phòng gần nhất ${Math.round(closestDistance)}m.`;
-            }
-            return res.status(400).json({ success: false, message: errorMsg });
-        }
+        let locationNote = 'Không kiểm tra vị trí';
 
         // 1. Lấy 3 khuôn mặt gốc từ DB
         const userQuery = `
@@ -318,15 +287,21 @@ router.post('/checkAttendance', async (req, res) => {
             if (existingRecord.rowCount > 0 && !existingRecord.rows[0].gio_ra) {
                 // Đã check-in rồi → cập nhật gio_ra (check-out)
                 const updateResult = await pool.query(
-                    `UPDATE CHAM_CONG SET gio_ra = now(), url_anh = $1, ghi_chu = $2
+                    `UPDATE CHAM_CONG SET gio_ra = now(), url_anh_ra = $1, ghi_chu = $2
                      WHERE id_cham_cong = $3 RETURNING gio_ra`,
                     [url, `Check-out qua AI (Python)${additionalNote}`, existingRecord.rows[0].id_cham_cong]
                 );
                 timeRecorded = updateResult.rows[0].gio_ra;
             } else {
                 // Chưa check-in → tạo bản ghi mới
+                const { lateReason } = req.body;
+                let finalNote = `Chấm công qua AI (Python)${additionalNote}`;
+                if (lateReason) {
+                    finalNote = `Đi trễ - Giải trình: ${lateReason}${additionalNote}`;
+                }
+
                 const insertChamCong = `
-                    INSERT INTO CHAM_CONG (id_cham_cong, id_nhan_vien, gio_vao, url_anh, ghi_chu)
+                    INSERT INTO CHAM_CONG (id_cham_cong, id_nhan_vien, gio_vao, url_anh_vao, ghi_chu)
                     VALUES ($1, $2, now(), $3, $4)
                     RETURNING gio_vao;
                 `;
@@ -334,9 +309,57 @@ router.post('/checkAttendance', async (req, res) => {
                     id_cham_cong,
                     user.id_nhan_vien,
                     url,
-                    `Chấm công qua AI (Python)${additionalNote}`
+                    finalNote
                 ]);
                 timeRecorded = insertResult.rows[0].gio_vao;
+
+                // Nếu đi trễ quá giờ cho phép và có giải trình, lưu vào bảng GIAI_TRINH_DI_TRE
+                if (lateReason) {
+                    try {
+                        const id_giai_trinh = generateId('GT');
+                        await pool.query(
+                            `INSERT INTO GIAI_TRINH_DI_TRE (id_giai_trinh, id_nhan_vien, ngay_giai_trinh, gio_vao_tre, ly_do, trang_thai)
+                             VALUES ($1, $2, CURRENT_DATE, now(), $3, NULL)`,
+                            [id_giai_trinh, user.id_nhan_vien, lateReason]
+                        );
+
+                        // Gửi thông báo cho HR/Admin
+                        const getHrQuery = `
+                            SELECT nv.id_nhan_vien 
+                            FROM NHAN_VIEN nv
+                            JOIN TAI_KHOAN tk ON nv.id_tai_khoan = tk.id_tai_khoan
+                            JOIN VAI_TRO vt ON tk.id_vai_tro = vt.id_vai_tro
+                            WHERE vt.ten_vai_tro ILIKE '%Admin%' OR vt.ten_vai_tro ILIKE '%HR%' OR vt.ten_vai_tro ILIKE '%Nhân sự%'
+                        `;
+                        const hrResult = await pool.query(getHrQuery);
+                        const empName = user.full_name || "Nhân viên";
+
+                        for (const hr of hrResult.rows) {
+                            await createNotificationHelper(
+                                hr.id_nhan_vien,
+                                "Giải trình đi trễ mới 📝",
+                                `${empName} vừa gửi giải trình đi trễ: "${lateReason}"`,
+                                "LATE_EXPLANATION"
+                            );
+                        }
+
+                        // Đồng bộ lên kênh admin_notifications cho Web App (AdminTime)
+                        const notifId = generateId('TB');
+                        await admin.database().ref(`admin_notifications/${notifId}`).set({
+                            id_thong_bao: notifId,
+                            id_nhan_vien: user.id_nhan_vien,
+                            ho_ten_nhan_vien: empName,
+                            tieu_de: "Giải trình đi trễ mới 📝",
+                            noi_dung: `${empName} vừa gửi giải trình đi trễ: "${lateReason}"`,
+                            loai_thong_bao: "LATE_EXPLANATION",
+                            da_doc: false,
+                            ngay_tao: Date.now()
+                        });
+                        console.log(`🔥 Đã đồng bộ thông báo giải trình đi trễ lên admin_notifications`);
+                    } catch (giaiTrinhErr) {
+                        console.error("Lỗi khi lưu giải trình đi trễ hoặc gửi thông báo:", giaiTrinhErr.message);
+                    }
+                }
             }
 
             // 5. Trả dữ liệu về cho Điện thoại hiển thị

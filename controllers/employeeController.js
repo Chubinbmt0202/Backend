@@ -916,7 +916,7 @@ export const getEmployeeDashboard = async (req, res) => {
 
         // 3. Lấy toàn bộ thông tin chấm công hôm nay
         const todayAttendanceQuery = `
-            SELECT id_cham_cong, gio_vao, gio_ra, ghi_chu, url_anh
+            SELECT id_cham_cong, gio_vao, gio_ra, ghi_chu, url_anh_vao, url_anh_ra
             FROM CHAM_CONG
             WHERE id_nhan_vien = $1 AND gio_vao::date = CURRENT_DATE
             ORDER BY gio_vao ASC
@@ -936,16 +936,27 @@ export const getEmployeeDashboard = async (req, res) => {
             const normalLogs = [];
             const otLogs = [];
 
-            todayLogs.forEach(log => {
+            if (todayLogs.length >= 2) {
+                // Sắp xếp theo giờ vào tăng dần
+                todayLogs.sort((a, b) => new Date(a.gio_vao).getTime() - new Date(b.gio_vao).getTime());
+                normalLogs.push(todayLogs[0]);
+                otLogs.push(todayLogs[1]);
+            } else if (todayLogs.length === 1) {
+                const log = todayLogs[0];
                 const logDate = new Date(log.gio_vao);
-                const logMinutes = logDate.getHours() * 60 + logDate.getMinutes();
+                
+                // Lấy giờ Việt Nam
+                const hourStr = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Ho_Chi_Minh', hour: 'numeric', hour12: false }).format(logDate);
+                const hour = parseInt(hourStr, 10) === 24 ? 0 : parseInt(hourStr, 10);
+                
+                const isOtByNote = log.ghi_chu && (log.ghi_chu.toLowerCase().includes("tăng ca") || log.ghi_chu.toLowerCase().includes("ot"));
 
-                if (logMinutes >= otStartMinutes - 45 || (normalLogs.length > 0 && logMinutes >= 16 * 60 + 30)) {
+                if (hour >= 16 || isOtByNote) {
                     otLogs.push(log);
                 } else {
                     normalLogs.push(log);
                 }
-            });
+            }
 
             if (normalLogs.length > 0) {
                 todayAttendance = normalLogs[0];
@@ -961,7 +972,7 @@ export const getEmployeeDashboard = async (req, res) => {
 
         // 4. Lấy lịch sử chấm công (10 lần gần nhất)
         const historyQuery = `
-            SELECT gio_vao, gio_ra, ghi_chu, url_anh
+            SELECT gio_vao, gio_ra, ghi_chu, url_anh_vao, url_anh_ra
             FROM CHAM_CONG
             WHERE id_nhan_vien = $1
             ORDER BY gio_vao DESC
