@@ -6,7 +6,8 @@ import {
     verifyAttendanceFace,
     getLateExplanations,
     getEmployeeLateExplanations,
-    updateLateExplanationStatus
+    updateLateExplanationStatus,
+    getAttendanceTrend
 } from '../controllers/attendanceController.js';
 
 import pool from '../config/db.js';
@@ -45,8 +46,8 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
     const dLat = toRad(lat2 - lat1);
     const dLon = toRad(lon2 - lon1);
     const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c; // Trả về khoảng cách bằng mét
 };
@@ -79,6 +80,9 @@ router.post('/verify', verifyAttendanceFace);
 
 // GET /api/attendance/list/daily?date=YYYY-MM-DD - Lấy danh sách chấm công của tất cả NV
 router.get('/list/daily', getAllAttendance);
+
+// GET /api/attendance/summary/trend - Lấy thống kê xu hướng chấm công (7 ngày hoặc 30 ngày)
+router.get('/summary/trend', getAttendanceTrend);
 
 // GET /api/attendance/history/:userId - Lấy lịch sử chấm công của 1 NV
 router.get('/history/:userId', getEmployeeAttendanceHistory);
@@ -145,12 +149,12 @@ router.post('/testRegister', async (req, res) => {
               AND id_tai_khoan != $1
         `;
         const checkResult = await pool.query(checkQuery, [userId]);
-        
+
         for (const row of checkResult.rows) {
             const savedEmbeddings = typeof row.du_lieu_khuon_mat === 'string'
                 ? JSON.parse(row.du_lieu_khuon_mat)
                 : row.du_lieu_khuon_mat;
-            
+
             if (Array.isArray(savedEmbeddings)) {
                 for (const newEmb of embeddings) {
                     const distances = savedEmbeddings.map(savedEmb => euclideanDistance(savedEmb, newEmb));
@@ -200,7 +204,7 @@ router.post('/testRegister', async (req, res) => {
 // =========================================================================
 router.post('/checkAttendance', async (req, res) => {
     try {
-        const { userId, url, evidence, action } = req.body;
+        const { userId, url, evidence, action, isOvertime } = req.body;
         console.log("req.body", req.body);
         if (!userId || !url) {
             return res.status(400).json({ success: false, message: 'Thiếu userId hoặc url ảnh.' });
@@ -269,10 +273,11 @@ router.post('/checkAttendance', async (req, res) => {
 
             const id_cham_cong = generateId('CC');
 
-            // Kiểm tra xem hôm nay đã có bản ghi chấm công chưa
+            // Lấy bản ghi chấm công gần nhất trong vòng 24 giờ
             const existingRecord = await pool.query(
-                `SELECT id_cham_cong, gio_vao, gio_ra FROM CHAM_CONG 
-                 WHERE id_nhan_vien = $1 AND gio_vao::date = CURRENT_DATE
+                `SELECT id_cham_cong, gio_vao, gio_ra, ghi_chu FROM CHAM_CONG 
+                 WHERE id_nhan_vien = $1 AND gio_vao >= NOW() - INTERVAL '24 HOURS'
+                 ORDER BY gio_vao DESC
                  LIMIT 1`,
                 [user.id_nhan_vien]
             );
@@ -284,30 +289,56 @@ router.post('/checkAttendance', async (req, res) => {
                 additionalNote = ` - Vị trí: ${locationNote}`;
             }
 
-            if (existingRecord.rowCount > 0 && !existingRecord.rows[0].gio_ra) {
-                // Đã check-in rồi → cập nhật gio_ra (check-out)
-                const updateResult = await pool.query(
-                    `UPDATE CHAM_CONG SET gio_ra = now(), url_anh_ra = $1, ghi_chu = $2
-                     WHERE id_cham_cong = $3 RETURNING gio_ra`,
-                    [url, `Check-out qua AI (Python)${additionalNote}`, existingRecord.rows[0].id_cham_cong]
-                );
-                timeRecorded = updateResult.rows[0].gio_ra;
+            if (action === 'check_out') {
+                if (existingRecord.rowCount > 0 && !existingRecord.rows[0].gio_ra) {
+                    // Đã check-in rồi → cập nhật gio_ra (check-out)
+                    const dbNote = existingRecord.rows[0].ghi_chu || '';
+                    const isOtRecord = dbNote.toLowerCase().includes('tăng ca') || dbNote.toLowerCase().includes('ot') || isOvertime === true || isOvertime === 'true';
+                    
+                    let checkOutNote = `Check-out qua AI (Python)${additionalNote}`;
+                    if (isOtRecord) {
+                        checkOutNote = `Tăng ca - Check-out qua AI (Python)${additionalNote}`;
+                    }
+
+                    const updateResult = await pool.query(
+                        `UPDATE CHAM_CONG SET gio_ra = now(), url_anh_ra = $1, ghi_chu = $2
+                         WHERE id_cham_cong = $3 RETURNING gio_ra`,
+                        [url, checkOutNote, existingRecord.rows[0].id_cham_cong]
+                    );
+                    timeRecorded = updateResult.rows[0].gio_ra;
+                } else if (existingRecord.rowCount > 0 && existingRecord.rows[0].gio_ra) {
+                    return res.status(400).json({ success: false, message: 'Bạn đã chấm công ra rồi.' });
+                } else {
+                    return res.status(400).json({ success: false, message: 'Bạn chưa chấm công vào, không thể chấm công ra.' });
+                }
             } else {
+                // action === 'check_in' hoặc mặc định
+                if (existingRecord.rowCount > 0 && !existingRecord.rows[0].gio_ra) {
+                    return res.status(400).json({ success: false, message: 'Bạn đã chấm công vào rồi, vui lòng chấm công ra.' });
+                }
+
+                // Lấy id_ca_lam mặc định
+                const shiftRes = await pool.query('SELECT id_ca_lam_viec FROM CA_LAM_VIEC LIMIT 1');
+                const idCaLam = shiftRes.rowCount > 0 ? shiftRes.rows[0].id_ca_lam_viec : null;
+
                 // Chưa check-in → tạo bản ghi mới
                 const { lateReason } = req.body;
                 let finalNote = `Chấm công qua AI (Python)${additionalNote}`;
-                if (lateReason) {
+                if (isOvertime === true || isOvertime === 'true') {
+                    finalNote = `Tăng ca - Chấm công qua AI (Python)${additionalNote}`;
+                } else if (lateReason) {
                     finalNote = `Đi trễ - Giải trình: ${lateReason}${additionalNote}`;
                 }
 
                 const insertChamCong = `
-                    INSERT INTO CHAM_CONG (id_cham_cong, id_nhan_vien, gio_vao, url_anh_vao, ghi_chu)
-                    VALUES ($1, $2, now(), $3, $4)
+                    INSERT INTO CHAM_CONG (id_cham_cong, id_nhan_vien, id_ca_lam, gio_vao, url_anh_vao, ghi_chu)
+                    VALUES ($1, $2, $3, now(), $4, $5)
                     RETURNING gio_vao;
                 `;
                 const insertResult = await pool.query(insertChamCong, [
                     id_cham_cong,
                     user.id_nhan_vien,
+                    idCaLam,
                     url,
                     finalNote
                 ]);

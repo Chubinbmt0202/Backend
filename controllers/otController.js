@@ -14,6 +14,21 @@ export const createOTRequest = async (req, res) => {
             });
         }
 
+        // Kiểm tra xem nhân viên đã đăng ký tăng ca trong ngày này chưa
+        const checkQuery = `
+            SELECT id_don_ot FROM DON_DANG_KY_OT 
+            WHERE id_nhan_vien = $1 AND ngay_dang_ky_ot = $2
+            LIMIT 1;
+        `;
+        const existingOT = await pool.query(checkQuery, [employeeId, otDate]);
+        
+        if (existingOT.rowCount > 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Bạn đã đăng ký tăng ca cho ngày này rồi. Mỗi ngày chỉ được đăng ký tối đa 1 lần.'
+            });
+        }
+
         const idDonOt = generateId('OT');
         
         const query = `

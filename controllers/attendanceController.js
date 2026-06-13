@@ -154,11 +154,11 @@ export const getAllAttendance = async (req, res) => {
                 } else if (logs.length === 1) {
                     const log = logs[0];
                     const logDate = new Date(log.gio_vao);
-                    
+
                     // Lấy giờ Việt Nam
                     const hourStr = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Ho_Chi_Minh', hour: 'numeric', hour12: false }).format(logDate);
                     const hour = parseInt(hourStr, 10) === 24 ? 0 : parseInt(hourStr, 10);
-                    
+
                     const isOtByNote = log.ghi_chu && (log.ghi_chu.toLowerCase().includes("tăng ca") || log.ghi_chu.toLowerCase().includes("ot"));
 
                     if (hour >= 16 || isOtByNote) {
@@ -405,11 +405,11 @@ export const getEmployeeAttendanceHistory = async (req, res) => {
                 } else if (logs.length === 1) {
                     const log = logs[0];
                     const logDate = new Date(log.gio_vao);
-                    
+
                     // Lấy giờ Việt Nam
                     const hourStr = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Ho_Chi_Minh', hour: 'numeric', hour12: false }).format(logDate);
                     const hour = parseInt(hourStr, 10) === 24 ? 0 : parseInt(hourStr, 10);
-                    
+
                     const isOtByNote = log.ghi_chu && (log.ghi_chu.toLowerCase().includes("tăng ca") || log.ghi_chu.toLowerCase().includes("ot"));
 
                     if (hour >= 16 || isOtByNote) {
@@ -601,4 +601,56 @@ export const updateLateExplanationStatus = async (req, res) => {
     }
 };
 
+/**
+ * Controller API Lấy thống kê xu hướng chấm công (Trend)
+ */
+export const getAttendanceTrend = async (req, res) => {
+    try {
+        const { days = 7 } = req.query;
+        
+        // 1. Thống kê theo ngày (7 ngày gần nhất)
+        const trendQuery = `
+            SELECT 
+                log_date,
+                COUNT(DISTINCT id_nhan_vien) AS total_present
+            FROM (
+                SELECT id_nhan_vien, TO_CHAR(gio_vao, 'YYYY-MM-DD') AS log_date
+                FROM CHAM_CONG
+                WHERE gio_vao >= CURRENT_DATE - ($1 || ' days')::interval
+            ) sub
+            GROUP BY log_date
+            ORDER BY log_date ASC
+        `;
+        
+        const trendResult = await pool.query(trendQuery, [days]);
 
+        // 2. Tỷ lệ đi muộn theo phòng ban hôm nay (hoặc 7 ngày)
+        const lateByDeptQuery = `
+            SELECT 
+                pb.ten_phong_ban,
+                COUNT(cc.id_cham_cong) AS late_count
+            FROM CHAM_CONG cc
+            JOIN NHAN_VIEN nv ON cc.id_nhan_vien = nv.id_nhan_vien
+            JOIN PHONG_BAN pb ON nv.id_phong_ban = pb.id_phong_ban
+            WHERE cc.gio_vao >= CURRENT_DATE - ($1 || ' days')::interval
+              AND (EXTRACT(HOUR FROM cc.gio_vao) * 60 + EXTRACT(MINUTE FROM cc.gio_vao) > 8 * 60)
+            GROUP BY pb.ten_phong_ban
+        `;
+        
+        const lateByDeptResult = await pool.query(lateByDeptQuery, [days]);
+
+        res.status(200).json({
+            success: true,
+            data: {
+                trend: trendResult.rows,
+                lateByDept: lateByDeptResult.rows
+            }
+        });
+    } catch (error) {
+        console.error('Lỗi khi lấy thống kê chấm công:', error.message);
+        res.status(500).json({
+            success: false,
+            message: 'Lỗi server khi lấy thống kê chấm công.'
+        });
+    }
+};

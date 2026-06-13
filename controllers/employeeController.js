@@ -61,9 +61,9 @@ export const addEmployee = async (req, res) => {
         // Thêm nhân viên
         const newEmployee = await pool.query(
             `
-                INSERT INTO NHAN_VIEN (id_nhan_vien, ho_va_ten, ngay_sinh, so_dien_thoai, dia_chi, id_tai_khoan, id_phong_ban)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
-                RETURNING id_nhan_vien, id_tai_khoan, ho_va_ten, ngay_sinh, so_dien_thoai, dia_chi, id_phong_ban
+                INSERT INTO NHAN_VIEN (id_nhan_vien, ho_va_ten, ngay_sinh, so_dien_thoai, dia_chi, email, gioi_tinh, id_tai_khoan, id_phong_ban)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                RETURNING id_nhan_vien, id_tai_khoan, ho_va_ten, ngay_sinh, so_dien_thoai, dia_chi, email, gioi_tinh, id_phong_ban
             `,
             [
                 id_nhan_vien,
@@ -71,6 +71,8 @@ export const addEmployee = async (req, res) => {
                 date_of_birth || null,
                 phone_number || null,
                 address || null,
+                req.body.email || null,
+                req.body.gender || null,
                 id_tai_khoan,
                 department_id || null
             ]
@@ -117,6 +119,8 @@ export const getEmployees = async (req, res) => {
                     nv.ngay_sinh AS date_of_birth,
                     nv.so_dien_thoai AS phone_number,
                     nv.dia_chi AS address,
+                    nv.email AS email,
+                    nv.gioi_tinh AS gender,
                     nv.id_phong_ban AS department_id,
                     pb.mo_ta AS department_name,
                     tk.id_tai_khoan,
@@ -169,6 +173,8 @@ export const getEmployeesByDepartment = async (req, res) => {
                     nv.ngay_sinh AS date_of_birth,
                     nv.so_dien_thoai AS phone_number,
                     nv.dia_chi AS address,
+                    nv.email AS email,
+                    nv.gioi_tinh AS gender,
                     nv.id_phong_ban AS department_id,
                     pb.mo_ta AS department_name,
                     tk.id_tai_khoan,
@@ -224,6 +230,8 @@ export const getEmployeeByID = async (req, res) => {
                 nv.ngay_sinh AS date_of_birth,
                 nv.so_dien_thoai AS phone_number,
                 nv.dia_chi AS address,
+                nv.email AS email,
+                nv.gioi_tinh AS gender,
                 nv.id_phong_ban AS department_id,
                 pb.mo_ta AS department_name,
                 tk.id_tai_khoan,
@@ -362,8 +370,8 @@ export const updateEmployee = async (req, res) => {
         if (address) { nvFields.push(`dia_chi = $${nvIdx++}`); nvValues.push(address); }
         if (department_id) { nvFields.push(`id_phong_ban = $${nvIdx++}`); nvValues.push(department_id); }
         if (phone_number) { nvFields.push(`so_dien_thoai = $${nvIdx++}`); nvValues.push(phone_number); }
-        if (email) { nvFields.push(`email = $${nvIdx++}`); nvValues.push(email); }
-        if (gender) { nvFields.push(`gioi_tinh = $${nvIdx++}`); nvValues.push(gender); }
+        if (email !== undefined) { nvFields.push(`email = $${nvIdx++}`); nvValues.push(email); }
+        if (gender !== undefined) { nvFields.push(`gioi_tinh = $${nvIdx++}`); nvValues.push(gender); }
 
         if (nvFields.length > 0) {
             nvValues.push(id);
@@ -404,9 +412,9 @@ export const updateEmployee = async (req, res) => {
                     nv.ho_va_ten AS full_name,
                     nv.ngay_sinh AS date_of_birth,
                     nv.dia_chi AS address,
-                    nv.so_dien_thoai AS phone_number,
-                    nv.email,
+                    nv.email AS email,
                     nv.gioi_tinh AS gender,
+                    nv.so_dien_thoai AS phone_number,
                     nv.id_phong_ban AS department_id,
                     pb.mo_ta AS department_name,
                     tk.id_tai_khoan,
