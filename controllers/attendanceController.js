@@ -338,6 +338,15 @@ export const getEmployeeAttendanceHistory = async (req, res) => {
         `;
         const otResult = await pool.query(otQuery, [empId]);
 
+        // 4. Fetch all GIAI_TRINH_DI_TRE for the employee
+        const explQuery = `
+            SELECT id_giai_trinh, ngay_giai_trinh, gio_vao_tre, ly_do, trang_thai
+            FROM GIAI_TRINH_DI_TRE
+            WHERE id_nhan_vien = $1
+            ORDER BY ngay_giai_trinh DESC
+        `;
+        const explResult = await pool.query(explQuery, [empId]);
+
         // Group by local date YYYY-MM-DD
         const dailyDataMap = new Map();
 
@@ -364,9 +373,22 @@ export const getEmployeeAttendanceHistory = async (req, res) => {
                 dateStr = row.ngay_dang_ky_ot.split('T')[0];
             }
             if (!dailyDataMap.has(dateStr)) {
-                dailyDataMap.set(dateStr, { logs: [], ot: null });
+                dailyDataMap.set(dateStr, { logs: [], ot: null, explanation: null });
             }
             dailyDataMap.get(dateStr).ot = row;
+        });
+
+        explResult.rows.forEach(row => {
+            let dateStr = row.ngay_giai_trinh;
+            if (row.ngay_giai_trinh instanceof Date) {
+                dateStr = getLocalDateString(row.ngay_giai_trinh);
+            } else if (typeof row.ngay_giai_trinh === 'string') {
+                dateStr = row.ngay_giai_trinh.split('T')[0];
+            }
+            if (!dailyDataMap.has(dateStr)) {
+                dailyDataMap.set(dateStr, { logs: [], ot: null, explanation: null });
+            }
+            dailyDataMap.get(dateStr).explanation = row;
         });
 
         const historyList = [];
@@ -437,10 +459,19 @@ export const getEmployeeAttendanceHistory = async (req, res) => {
 
             if (check_in_time === null) {
                 status = null;
-            } else if (check_out_time === null) {
-                status = 'checked_in';
             } else {
-                status = 'checked_out';
+                const inDate = new Date(check_in_time);
+                const options = { timeZone: 'Asia/Ho_Chi_Minh', hour: 'numeric', minute: 'numeric', hour12: false };
+                const formatter = new Intl.DateTimeFormat('en-US', options);
+                const parts = formatter.formatToParts(inDate);
+                const h = parseInt(parts.find(p => p.type === 'hour').value, 10) % 24;
+                const m = parseInt(parts.find(p => p.type === 'minute').value, 10);
+                
+                if (h * 60 + m > 8 * 60) {
+                    status = 'late';
+                } else {
+                    status = 'present';
+                }
             }
 
             historyList.push({
@@ -456,7 +487,8 @@ export const getEmployeeAttendanceHistory = async (req, res) => {
                 ot_check_in_time,
                 ot_check_out_time,
                 url_anh_vao: logs.length > 0 ? logs[logs.length - 1].url_anh_vao : null,
-                url_anh_ra: logs.length > 0 ? logs[0].url_anh_ra : null
+                url_anh_ra: logs.length > 0 ? logs[0].url_anh_ra : null,
+                explanation: val.explanation
             });
         });
 

@@ -136,7 +136,7 @@ router.post('/testRegister', async (req, res) => {
         if (embeddings.length !== 3) {
             return res.status(400).json({
                 success: false,
-                message: `Chỉ trích xuất được ${embeddings.length}/3 khuôn mặt. Vui lòng chụp rõ mặt hơn.`
+                message: `Vui lòng chụp hình trong môi trường đủ ánh sáng, ...`
             });
         }
 
