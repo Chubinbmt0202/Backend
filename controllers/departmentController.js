@@ -36,3 +36,51 @@ export const getDepartments = async (req, res) => {
         res.status(500).json({ success: false, message: 'Lỗi server.' });
     }
 };
+
+// Cập nhật phòng ban
+export const updateDepartment = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { ten_phong_ban, mo_ta } = req.body;
+        
+        const result = await pool.query(
+            'UPDATE PHONG_BAN SET ten_phong_ban = $1, mo_ta = $2 WHERE id_phong_ban = $3 RETURNING *',
+            [ten_phong_ban || null, mo_ta || null, id]
+        );
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy phòng ban.' });
+        }
+
+        res.status(200).json({ success: true, data: result.rows[0] });
+    } catch (error) {
+        console.error('Lỗi khi cập nhật phòng ban:', error.message);
+        res.status(500).json({ success: false, message: 'Lỗi server.' });
+    }
+};
+
+// Xóa phòng ban
+export const deleteDepartment = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Kiểm tra xem phòng ban có nhân viên nào không
+        const checkQuery = await pool.query('SELECT COUNT(*) FROM NHAN_VIEN WHERE id_phong_ban = $1', [id]);
+        const employeeCount = parseInt(checkQuery.rows[0].count);
+
+        if (employeeCount > 0) {
+            return res.status(400).json({ success: false, message: 'Không thể xóa phòng ban đang có nhân viên.' });
+        }
+
+        const result = await pool.query('DELETE FROM PHONG_BAN WHERE id_phong_ban = $1 RETURNING *', [id]);
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy phòng ban.' });
+        }
+
+        res.status(200).json({ success: true, message: 'Xóa phòng ban thành công.' });
+    } catch (error) {
+        console.error('Lỗi khi xóa phòng ban:', error.message);
+        res.status(500).json({ success: false, message: 'Lỗi server.' });
+    }
+};

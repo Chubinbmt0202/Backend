@@ -105,6 +105,14 @@ export const getAllAttendance = async (req, res) => {
         `;
         const otResult = await pool.query(otQuery, [queryDate]);
 
+        // 4. Query all GIAI_TRINH_DI_TRE records for this day
+        const explQuery = `
+            SELECT id_giai_trinh, id_nhan_vien, ngay_giai_trinh, gio_vao_tre, ly_do, trang_thai
+            FROM GIAI_TRINH_DI_TRE
+            WHERE ngay_giai_trinh = $1::date
+        `;
+        const explResult = await pool.query(explQuery, [queryDate]);
+
         // Grouping
         const attendanceMap = new Map();
         attResult.rows.forEach(row => {
@@ -119,10 +127,16 @@ export const getAllAttendance = async (req, res) => {
             otMap.set(row.id_nhan_vien, row);
         });
 
+        const explMap = new Map();
+        explResult.rows.forEach(row => {
+            explMap.set(row.id_nhan_vien, row);
+        });
+
         const mergedData = empResult.rows.map(emp => {
             const empId = emp.employee_id;
             const logs = attendanceMap.get(empId) || [];
             const ot = otMap.get(empId) || null;
+            const explanation = explMap.get(empId) || null;
 
             let check_in_time = null;
             let check_out_time = null;
@@ -188,10 +202,19 @@ export const getAllAttendance = async (req, res) => {
             // Determine normal status
             if (check_in_time === null) {
                 status = null;
-            } else if (check_out_time === null) {
-                status = 'checked_in';
             } else {
-                status = 'checked_out';
+                const inDate = new Date(check_in_time);
+                const options = { timeZone: 'Asia/Ho_Chi_Minh', hour: 'numeric', minute: 'numeric', hour12: false };
+                const formatter = new Intl.DateTimeFormat('en-US', options);
+                const parts = formatter.formatToParts(inDate);
+                const h = parseInt(parts.find(p => p.type === 'hour').value, 10) % 24;
+                const m = parseInt(parts.find(p => p.type === 'minute').value, 10);
+                
+                if (h * 60 + m > 8 * 60) {
+                    status = 'late';
+                } else {
+                    status = 'present';
+                }
             }
 
             return {
@@ -210,7 +233,8 @@ export const getAllAttendance = async (req, res) => {
                 ot_check_in_time,
                 ot_check_out_time,
                 url_anh_vao: logs.length > 0 ? logs[0].url_anh_vao : null,
-                url_anh_ra: logs.length > 0 ? logs[logs.length - 1].url_anh_ra : null
+                url_anh_ra: logs.length > 0 ? logs[logs.length - 1].url_anh_ra : null,
+                explanation
             };
         });
 
