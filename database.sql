@@ -77,7 +77,8 @@ CREATE TABLE NHAN_VIEN (
     id_tai_khoan VARCHAR(8),
     id_phong_ban VARCHAR(8),
     fcm_token VARCHAR(255),
-    hinh_anh VARCHAR(255)
+    hinh_anh VARCHAR(255),
+    ngay_cap_nhat_khuon_mat TIMESTAMP
 );
 
 -- 7. Bảng Loại Phép

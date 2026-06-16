@@ -130,7 +130,8 @@ export const getEmployees = async (req, res) => {
                     tk.trang_thai,
                     tk.ngay_tao AS created_at,
                     nv.du_lieu_khuon_mat,
-                    nv.hinh_anh
+                    nv.hinh_anh,
+                    nv.ngay_cap_nhat_khuon_mat
                 FROM NHAN_VIEN nv
                 LEFT JOIN TAI_KHOAN tk ON tk.id_tai_khoan = nv.id_tai_khoan
                 LEFT JOIN VAI_TRO vt ON vt.id_vai_tro = tk.id_vai_tro
@@ -184,7 +185,8 @@ export const getEmployeesByDepartment = async (req, res) => {
                     tk.trang_thai,
                     tk.ngay_tao AS created_at,
                     nv.du_lieu_khuon_mat,
-                    nv.hinh_anh
+                    nv.hinh_anh,
+                    nv.ngay_cap_nhat_khuon_mat
                 FROM NHAN_VIEN nv
                 LEFT JOIN TAI_KHOAN tk ON tk.id_tai_khoan = nv.id_tai_khoan
                 LEFT JOIN VAI_TRO vt ON vt.id_vai_tro = tk.id_vai_tro
@@ -241,7 +243,8 @@ export const getEmployeeByID = async (req, res) => {
                 tk.trang_thai,
                 tk.ngay_tao AS created_at,
                 nv.du_lieu_khuon_mat,
-                nv.hinh_anh
+                nv.hinh_anh,
+                nv.ngay_cap_nhat_khuon_mat
             FROM NHAN_VIEN nv
             LEFT JOIN TAI_KHOAN tk ON tk.id_tai_khoan = nv.id_tai_khoan
             LEFT JOIN VAI_TRO vt ON vt.id_vai_tro = tk.id_vai_tro
@@ -424,7 +427,8 @@ export const updateEmployee = async (req, res) => {
                     tk.trang_thai,
                     tk.ngay_tao AS created_at,
                     nv.du_lieu_khuon_mat,
-                    nv.hinh_anh
+                    nv.hinh_anh,
+                    nv.ngay_cap_nhat_khuon_mat
                 FROM NHAN_VIEN nv
                 LEFT JOIN TAI_KHOAN tk ON tk.id_tai_khoan = nv.id_tai_khoan
                 LEFT JOIN VAI_TRO vt ON vt.id_vai_tro = tk.id_vai_tro
@@ -613,9 +617,9 @@ export const uploadEmployeeFace = async (req, res) => {
 
         const updateQuery = `
             UPDATE NHAN_VIEN
-            SET du_lieu_khuon_mat = $1::jsonb
+            SET du_lieu_khuon_mat = $1::jsonb, ngay_cap_nhat_khuon_mat = CURRENT_TIMESTAMP
             WHERE id_nhan_vien = $2
-            RETURNING id_nhan_vien, ho_va_ten;
+            RETURNING id_nhan_vien, ho_va_ten, ngay_cap_nhat_khuon_mat;
         `;
 
         // Chạy query (Sử dụng pool từ db.js của bạn)
@@ -679,7 +683,7 @@ export const requestFaceUpdate = async (req, res) => {
         // 2. Xóa dữ liệu khuôn mặt cũ
         const updateQuery = `
             UPDATE NHAN_VIEN
-            SET du_lieu_khuon_mat = NULL
+            SET du_lieu_khuon_mat = NULL, ngay_cap_nhat_khuon_mat = NULL
             WHERE id_nhan_vien = $1
             RETURNING id_nhan_vien, ho_va_ten;
         `;
@@ -1087,17 +1091,24 @@ export const updateFcmToken = async (req, res) => {
 export const changePassword = async (req, res) => {
     try {
         const { id } = req.params;
-        const { new_password } = req.body;
+        const new_password = req.body.new_password || req.body.newPassword;
+        const old_password = req.body.old_password || req.body.oldPassword;
 
-        if (!id || !new_password) {
+        if (!id || !new_password || !old_password) {
             return res.status(400).json({
                 success: false,
-                message: 'Vui lòng cung cấp ID nhân viên và mật khẩu mới.'
+                message: 'Vui lòng cung cấp đầy đủ mật khẩu cũ và mật khẩu mới.'
             });
         }
 
         const existing = await pool.query(
-            `SELECT id_tai_khoan FROM NHAN_VIEN WHERE id_nhan_vien = $1 LIMIT 1`,
+            `
+            SELECT nv.id_tai_khoan, tk.mat_khau 
+            FROM NHAN_VIEN nv
+            LEFT JOIN TAI_KHOAN tk ON tk.id_tai_khoan = nv.id_tai_khoan
+            WHERE nv.id_nhan_vien = $1 
+            LIMIT 1
+            `,
             [id]
         );
 
@@ -1108,7 +1119,23 @@ export const changePassword = async (req, res) => {
             });
         }
 
-        const id_tai_khoan = existing.rows[0].id_tai_khoan;
+        const { id_tai_khoan, mat_khau } = existing.rows[0];
+
+        // Kiểm tra mật khẩu cũ (hỗ trợ cả bcrypt và chuỗi thuần túy cho dữ liệu mẫu)
+        let isMatch = false;
+        if (mat_khau === old_password) {
+            isMatch = true;
+        } else {
+            isMatch = await bcrypt.compare(old_password, mat_khau);
+        }
+
+        if (!isMatch) {
+            return res.status(400).json({
+                success: false,
+                message: 'Mật khẩu cũ không chính xác.'
+            });
+        }
+
         const hashedPassword = await bcrypt.hash(new_password, 10);
 
         await pool.query(

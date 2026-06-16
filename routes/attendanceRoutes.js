@@ -173,9 +173,9 @@ router.post('/testRegister', async (req, res) => {
         const embeddingJSON = JSON.stringify(embeddings);
         const updateQuery = `
             UPDATE NHAN_VIEN
-            SET du_lieu_khuon_mat = $1::jsonb, hinh_anh = $3
+            SET du_lieu_khuon_mat = $1::jsonb, hinh_anh = $3, ngay_cap_nhat_khuon_mat = CURRENT_TIMESTAMP
             WHERE id_nhan_vien = $2 OR id_tai_khoan = $2
-            RETURNING id_nhan_vien, ho_va_ten, hinh_anh;
+            RETURNING id_nhan_vien, ho_va_ten, hinh_anh, ngay_cap_nhat_khuon_mat;
         `;
 
         const result = await pool.query(updateQuery, [embeddingJSON, userId, urls[0]]);
