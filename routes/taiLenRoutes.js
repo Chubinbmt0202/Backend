@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { taiLenTep } from '../controllers/uploadController.js';
+import { taiLenTep } from '../controllers/taiLenController.js';
 
 const router = express.Router();
 

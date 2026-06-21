@@ -1,5 +1,5 @@
 import pool from '../config/db.js';
-import { timKetQuaTotNhat } from '../utils/faceUtils.js';
+import { timKetQuaTotNhat } from '../utils/tienIchKhuonMat.js';
 
 const normalizeEmbedding = (raw) => {
     if (raw == null) return raw;
@@ -630,7 +630,7 @@ export const capNhatTrangThaiGiaiTrinh = async (req, res) => {
 
         // Gửi thông báo cho nhân viên về kết quả duyệt đơn giải trình
         try {
-            const { taoThongBaoHelper } = await import('./notificationController.js');
+            const { taoThongBaoHelper } = await import('./thongBaoController.js');
             const giaiTrinh = result.rows[0];
             const statusText = status === 'approved' ? 'chấp thuận' : 'từ chối';
             await taoThongBaoHelper(

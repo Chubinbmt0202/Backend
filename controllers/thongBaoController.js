@@ -1,7 +1,7 @@
 import pool from '../config/db.js';
 import admin from '../config/firebase.js';
-import { taoId } from '../utils/idGenerator.js';
-import { guiThongBaoPush } from '../utils/notification.js';
+import { taoId } from '../utils/tienIchTaoId.js';
+import { guiThongBaoPush } from '../utils/tienIchThongBao.js';
 
 // Hàm nội bộ để tạo thông báo (sử dụng trong hệ thống và API)
 export const taoThongBaoHelper = async (employeeId, title, content, type = 'SYSTEM') => {

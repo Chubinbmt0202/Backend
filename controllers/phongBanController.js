@@ -1,5 +1,5 @@
 import pool from '../config/db.js';
-import { taoId } from '../utils/idGenerator.js';
+import { taoId } from '../utils/tienIchTaoId.js';
 
 // Thêm phòng ban mới
 export const themPhongBan = async (req, res) => {

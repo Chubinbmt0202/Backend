@@ -1,5 +1,5 @@
 import express from 'express';
-import { dangNhap, dangXuat } from '../controllers/authController.js';
+import { dangNhap, dangXuat } from '../controllers/xacThucController.js';
 
 const router = express.Router();
 

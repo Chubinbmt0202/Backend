@@ -1,5 +1,5 @@
 import express from 'express';
-import { themVaiTro, ganVaiTro, layDanhSachVaiTro } from '../controllers/roleController.js';
+import { themVaiTro, ganVaiTro, layDanhSachVaiTro } from '../controllers/vaiTroController.js';
 
 const router = express.Router();
 

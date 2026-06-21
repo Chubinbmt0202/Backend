@@ -1,5 +1,5 @@
 import express from 'express';
-import { themPhongBan, layDanhSachPhongBan, capNhatPhongBan, xoaPhongBan } from '../controllers/departmentController.js';
+import { themPhongBan, layDanhSachPhongBan, capNhatPhongBan, xoaPhongBan } from '../controllers/phongBanController.js';
 
 const router = express.Router();
 

@@ -1,5 +1,5 @@
 import express from 'express';
-import { themCaLamViec, layTatCaCaLamViec, capNhatCaLamViec, xoaCaLamViec, layCaLamViecCuaToi } from '../controllers/shiftController.js';
+import { themCaLamViec, layTatCaCaLamViec, capNhatCaLamViec, xoaCaLamViec, layCaLamViecCuaToi } from '../controllers/caLamViecController.js';
 const router = express.Router();
 
 router.get('/getAllShifts', layTatCaCaLamViec)

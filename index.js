@@ -6,17 +6,17 @@ dotenv.config();
 
 import pool from './config/db.js'; // Import file kết nối database
 import './config/firebase.js'; // Khởi tạo Firebase Admin
-import employeeRoutes from './routes/employeeRoutes.js'; // Import route nhân viên
-import authRoutes from './routes/authRoutes.js'; // Import route authentication
-import attendanceRoutes from './routes/attendanceRoutes.js'; // Import route chấm công
-import shiftRoutes from './routes/shiftRoutes.js'; // Import route ca
-import roleRoutes from './routes/roleRoutes.js'; // Import route vai trò
-import departmentRoutes from './routes/departmentRoutes.js'; // Import route phòng ban
-import uploadRoutes from './routes/uploadRoutes.js'; // Import route upload ảnh Supabase
-import officeRoutes from './routes/officeRoutes.js'; // Import route văn phòng và GPS
-import leaveRoutes from './routes/leaveRoutes.js'; // Import route đơn xin nghỉ
-import notificationRoutes from './routes/notificationRoutes.js'; // Import route thông báo
-import otRoutes from './routes/otRoutes.js'; // Import route tăng ca
+import employeeRoutes from './routes/nhanVienRoutes.js'; // Import route nhân viên
+import authRoutes from './routes/xacThucRoutes.js'; // Import route authentication
+import attendanceRoutes from './routes/diemDanhRoutes.js'; // Import route chấm công
+import shiftRoutes from './routes/caLamViecRoutes.js'; // Import route ca
+import roleRoutes from './routes/vaiTroRoutes.js'; // Import route vai trò
+import departmentRoutes from './routes/phongBanRoutes.js'; // Import route phòng ban
+import uploadRoutes from './routes/taiLenRoutes.js'; // Import route upload ảnh Supabase
+import officeRoutes from './routes/vanPhongRoutes.js'; // Import route văn phòng và GPS
+import leaveRoutes from './routes/nghiPhepRoutes.js'; // Import route đơn xin nghỉ
+import notificationRoutes from './routes/thongBaoRoutes.js'; // Import route thông báo
+import otRoutes from './routes/tangCaRoutes.js'; // Import route tăng ca
 
 
 const app = express();

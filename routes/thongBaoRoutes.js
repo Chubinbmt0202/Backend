@@ -5,7 +5,7 @@ import {
     danhDauDaDoc,
     danhDauTatCaDaDoc,
     xoaThongBao
-} from '../controllers/notificationController.js';
+} from '../controllers/thongBaoController.js';
 
 const router = express.Router();
 

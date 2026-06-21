@@ -13,7 +13,7 @@ import {
     layThongKeNhanVien,
     capNhatFcmToken,
     doiMatKhau
-} from '../controllers/employeeController.js';
+} from '../controllers/nhanVienController.js';
 
 const router = express.Router();
 

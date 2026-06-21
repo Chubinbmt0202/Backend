@@ -1,5 +1,5 @@
 import pool from '../config/db.js';
-import { taoId } from '../utils/idGenerator.js';
+import { taoId } from '../utils/tienIchTaoId.js';
 
 // Thêm văn phòng và thiết lập luôn toạ độ GPS
 export const themToaDoVanPhong = async (req, res) => {

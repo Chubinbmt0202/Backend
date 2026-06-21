@@ -1,7 +1,7 @@
 import pool from '../config/db.js';
 import admin from '../config/firebase.js';
-import { taoId } from '../utils/idGenerator.js';
-import { taoThongBaoHelper } from './notificationController.js';
+import { taoId } from '../utils/tienIchTaoId.js';
+import { taoThongBaoHelper } from './thongBaoController.js';
 
 export const taoDonTangCa = async (req, res) => {
     try {

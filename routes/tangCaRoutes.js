@@ -1,5 +1,5 @@
 import express from 'express';
-import { taoDonTangCa, layTatCaDonTangCa, capNhatTrangThaiTangCa, layDonTangCaNhanVien } from '../controllers/otController.js';
+import { taoDonTangCa, layTatCaDonTangCa, capNhatTrangThaiTangCa, layDonTangCaNhanVien } from '../controllers/tangCaController.js';
 
 const router = express.Router();
 

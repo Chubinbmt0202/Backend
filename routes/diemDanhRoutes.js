@@ -8,12 +8,12 @@ import {
     layGiaiTrinhDiMuonCuaNhanVien,
     capNhatTrangThaiGiaiTrinh,
     layXuHuongDiemDanh
-} from '../controllers/attendanceController.js';
+} from '../controllers/diemDanhController.js';
 
 import pool from '../config/db.js';
-import { taoId } from '../utils/idGenerator.js';
+import { taoId } from '../utils/tienIchTaoId.js';
 import admin from '../config/firebase.js';
-import { taoThongBaoHelper } from '../controllers/notificationController.js';
+import { taoThongBaoHelper } from '../controllers/thongBaoController.js';
 
 const router = express.Router();
 

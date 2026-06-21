@@ -2,9 +2,9 @@ import pool from '../config/db.js';
 import bcrypt from 'bcrypt';
 import admin from '../config/firebase.js';
 import { v2 as cloudinary } from 'cloudinary';
-import { taoThongBaoHelper } from './notificationController.js';
-import { timKetQuaTotNhat } from '../utils/faceUtils.js';
-import { taoId } from '../utils/idGenerator.js';
+import { taoThongBaoHelper } from './thongBaoController.js';
+import { timKetQuaTotNhat } from '../utils/tienIchKhuonMat.js';
+import { taoId } from '../utils/tienIchTaoId.js';
 
 const normalizeEmbedding = (raw) => {
     if (raw == null) return raw;
@@ -1007,7 +1007,7 @@ export const layThongKeNhanVien = async (req, res) => {
         `;
         // Wait, the union query might have issues with column names and types. Let's keep the original leaveQuery but order by ngay_tao.
         // Wait, what did leaveQuery originally select?
-        // Let's check lines 898-905 of employeeController.js:
+        // Let's check lines 898-905 of nhanVienController.js:
         // `SELECT dxn.id_don_xin_nghi, dxn.ngay_bat_dau, dxn.ngay_ket_thuc, dxn.ly_do, dxn.trang_thai, lp.ten_phep, dxn.ngay_tao FROM DON_XIN_NGHI dxn ...`
         // Let's keep it exactly as it was to avoid breaking anything in leave request display!
         const leaveResult = await pool.query(`

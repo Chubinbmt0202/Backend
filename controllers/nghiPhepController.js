@@ -1,7 +1,7 @@
 import pool from '../config/db.js';
 import supabase from '../config/supabaseClient.js';
-import { taoId } from '../utils/idGenerator.js';
-import { taoThongBaoHelper } from './notificationController.js';
+import { taoId } from '../utils/tienIchTaoId.js';
+import { taoThongBaoHelper } from './thongBaoController.js';
 import admin from '../config/firebase.js';
 
 // Helper function to convert DD/MM/YYYY to YYYY-MM-DD

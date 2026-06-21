@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { taoYeuCauNghiPhep, layDonNghiPhepNhanVien, layTatCaDonNghiPhep, capNhatTrangThaiNghiPhep, layTatCaLoaiNghiPhep, capNhatLoaiNghiPhep } from '../controllers/leaveController.js';
+import { taoYeuCauNghiPhep, layDonNghiPhepNhanVien, layTatCaDonNghiPhep, capNhatTrangThaiNghiPhep, layTatCaLoaiNghiPhep, capNhatLoaiNghiPhep } from '../controllers/nghiPhepController.js';
 
 
 const router = express.Router();

@@ -1,5 +1,5 @@
 import pool from '../config/db.js';
-import { taoId } from '../utils/idGenerator.js';
+import { taoId } from '../utils/tienIchTaoId.js';
 
 // Helper: Chuyển "HH:mm" thành timestamp hợp lệ cho PostgreSQL
 const timeToTimestamp = (timeStr) => {

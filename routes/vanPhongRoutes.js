@@ -8,7 +8,7 @@ import {
     xoaWifiVanPhong,
     layTatCaWifi,
     themWifiVanPhong
-} from '../controllers/officeController.js';
+} from '../controllers/vanPhongController.js';
 
 const router = express.Router();
 
