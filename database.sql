@@ -4,6 +4,7 @@ DROP TABLE IF EXISTS THONG_BAO CASCADE;
 DROP TABLE IF EXISTS VAI_TRO_QUYEN_HAN CASCADE;
 DROP TABLE IF EXISTS CHAM_CONG CASCADE;
 DROP TABLE IF EXISTS DON_XIN_NGHI CASCADE;
+DROP TABLE IF EXISTS GIAI_TRINH_DI_TRE CASCADE;
 DROP TABLE IF EXISTS NHAN_VIEN CASCADE;
 DROP TABLE IF EXISTS TAI_KHOAN CASCADE;
 DROP TABLE IF EXISTS VAI_TRO CASCADE;
@@ -73,6 +74,8 @@ CREATE TABLE NHAN_VIEN (
     ngay_sinh DATE,
     so_dien_thoai VARCHAR(10),
     dia_chi VARCHAR(255),
+    email VARCHAR(255),
+    gioi_tinh VARCHAR(10),
     du_lieu_khuon_mat TEXT, -- Chuyển sang TEXT vì chứa array JSON rất lớn
     id_tai_khoan VARCHAR(8),
     id_phong_ban VARCHAR(8),
@@ -140,7 +143,8 @@ CREATE TABLE CHAM_CONG (
     vi_do DECIMAL(10, 6),
     gio_vao TIMESTAMP,
     gio_ra TIMESTAMP,
-    url_anh VARCHAR(255),
+    url_anh_vao VARCHAR(255),
+    url_anh_ra VARCHAR(255),
     ghi_chu VARCHAR(255)
 );
 
@@ -193,6 +197,20 @@ CREATE TABLE DON_DANG_KY_OT (
     ly_do VARCHAR(255),
     trang_thai VARCHAR(20) DEFAULT 'CHO_DUYET',
     ngay_tao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 17. Bảng Giải Trình Đi Trễ
+CREATE TABLE GIAI_TRINH_DI_TRE (
+    id_giai_trinh VARCHAR(8) PRIMARY KEY,
+    id_nhan_vien VARCHAR(8) NOT NULL,
+    ngay_giai_trinh DATE NOT NULL,
+    gio_vao_tre TIMESTAMP NOT NULL,
+    ly_do VARCHAR(255) NOT NULL,
+    trang_thai BOOLEAN DEFAULT NULL, -- NULL: Chờ duyệt, TRUE: Đã duyệt, FALSE: Từ chối
+    id_nguoi_duyet VARCHAR(8),
+    ngay_duyet TIMESTAMP,
+    ngay_tao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    ghi_chu VARCHAR(255)
 );
 
 -- ========================================================
@@ -259,6 +277,13 @@ ADD CONSTRAINT FK_ThietBi_TaiKhoan FOREIGN KEY (id_tai_khoan) REFERENCES TAI_KHO
 -- Đơn đăng ký OT
 ALTER TABLE DON_DANG_KY_OT 
 ADD CONSTRAINT FK_DonOT_NhanVien FOREIGN KEY (id_nhan_vien) REFERENCES NHAN_VIEN(id_nhan_vien) ON DELETE CASCADE;
+
+-- Giải trình đi trễ
+ALTER TABLE GIAI_TRINH_DI_TRE 
+ADD CONSTRAINT FK_GiaiTrinh_NhanVien FOREIGN KEY (id_nhan_vien) REFERENCES NHAN_VIEN(id_nhan_vien) ON DELETE CASCADE;
+
+ALTER TABLE GIAI_TRINH_DI_TRE 
+ADD CONSTRAINT FK_GiaiTrinh_NguoiDuyet FOREIGN KEY (id_nguoi_duyet) REFERENCES NHAN_VIEN(id_nhan_vien) ON DELETE SET NULL;
 
 -- ========================================================
 -- PHẦN 3: DỮ LIỆU MẪU (SAMPLE DATA)
@@ -344,7 +369,7 @@ INSERT INTO DIEM_CHAM_CONG (id_diem_cham_cong, kinh_do, vi_do, ten_wifi, dia_chi
 ('DC003', 105.852101, 21.028512, 'HN_Branch_Wifi', '11:22:33:44:55:66');
 
 -- 13. Bảng Chấm Công
-INSERT INTO CHAM_CONG (id_cham_cong, id_nhan_vien, id_ca_lam, id_diem_cham_cong, ten_wifi, dia_chi_wifi, kinh_do, vi_do, gio_vao, gio_ra, url_anh, ghi_chu) VALUES
+INSERT INTO CHAM_CONG (id_cham_cong, id_nhan_vien, id_ca_lam, id_diem_cham_cong, ten_wifi, dia_chi_wifi, kinh_do, vi_do, gio_vao, gio_ra, url_anh_vao, ghi_chu) VALUES
 ('CC001', 'NV003', 'CA001', 'DC001', 'CTY_Tầng_1', '00:1A:2B:3C:4D:5E', 106.682170, 10.762620, '2026-04-15 07:50:00', '2026-04-15 17:35:00', NULL, 'Đi làm đúng giờ'),
 ('CC002', 'NV004', 'CA001', 'DC002', 'CTY_Tầng_2', 'AA:BB:CC:DD:EE:FF', 106.682175, 10.762625, '2026-04-15 08:05:00', '2026-04-15 17:30:00', NULL, 'Đi trễ 5 phút'),
 ('CC003', 'NV001', 'CA002', 'DC003', 'HN_Branch_Wifi', '11:22:33:44:55:66', 105.852101, 21.028512, '2026-04-15 05:55:00', '2026-04-15 14:05:00', NULL, 'Sếp đi làm sớm');

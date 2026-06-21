@@ -50,10 +50,17 @@ export const login = async (req, res) => {
           nv.id_nhan_vien,
           nv.ho_va_ten,
           nv.hinh_anh,
+          nv.so_dien_thoai,
+          nv.email,
+          nv.ngay_sinh,
+          nv.dia_chi,
+          nv.gioi_tinh,
+          pb.ten_phong_ban,
           (nv.du_lieu_khuon_mat IS NOT NULL) as is_face_updated
         FROM TAI_KHOAN tk
         LEFT JOIN VAI_TRO vt ON vt.id_vai_tro = tk.id_vai_tro
         LEFT JOIN NHAN_VIEN nv ON nv.id_tai_khoan = tk.id_tai_khoan
+        LEFT JOIN PHONG_BAN pb ON nv.id_phong_ban = pb.id_phong_ban
         WHERE tk.ten_dang_nhap = $1
         LIMIT 1
       `,
@@ -128,7 +135,13 @@ export const login = async (req, res) => {
         ten_vai_tro: user.ten_vai_tro,
         id_nhan_vien: user.id_nhan_vien,
         ho_va_ten: user.ho_va_ten,
-        hinh_anh: user.hinh_anh
+        hinh_anh: user.hinh_anh,
+        so_dien_thoai: user.so_dien_thoai,
+        email: user.email,
+        ngay_sinh: user.ngay_sinh,
+        dia_chi: user.dia_chi,
+        gioi_tinh: user.gioi_tinh,
+        ten_phong_ban: user.ten_phong_ban
       },
     });
 

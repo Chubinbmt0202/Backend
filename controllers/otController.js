@@ -14,6 +14,31 @@ export const createOTRequest = async (req, res) => {
             });
         }
 
+        // Kiểm tra xem nhân viên đã hoàn thành chấm công ca chính trong ngày otDate chưa
+        const mainShiftQuery = `
+            SELECT gio_vao, gio_ra 
+            FROM CHAM_CONG 
+            WHERE id_nhan_vien = $1 AND gio_vao::date = $2::date
+              AND (ghi_chu IS NULL OR NOT (ghi_chu ILIKE '%tăng ca%' OR ghi_chu ILIKE '%ot%'))
+            LIMIT 1;
+        `;
+        const mainShiftResult = await pool.query(mainShiftQuery, [employeeId, otDate]);
+        
+        if (mainShiftResult.rowCount === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Bạn chưa hoàn thành chấm công của ca chính trong ngày đăng ký tăng ca này. Vui lòng chấm công vào và ra ca chính trước.'
+            });
+        }
+        
+        const mainShift = mainShiftResult.rows[0];
+        if (!mainShift.gio_ra) {
+            return res.status(400).json({
+                success: false,
+                message: 'Bạn chưa chấm công ra cho ca chính. Vui lòng hoàn thành chấm công ra ca chính trước khi đăng ký tăng ca.'
+            });
+        }
+
         // Kiểm tra xem nhân viên đã đăng ký tăng ca trong ngày này chưa
         const checkQuery = `
             SELECT id_don_ot FROM DON_DANG_KY_OT 

@@ -55,6 +55,14 @@ async function runMigrations() {
         `);
         console.log("GIAI_TRINH_DI_TRE table verified/created.");
 
+        // 4. PHONG_BAN table updates
+        console.log("Updating PHONG_BAN table for department shifts...");
+        await pool.query(`
+            ALTER TABLE PHONG_BAN 
+            ADD COLUMN IF NOT EXISTS id_ca_lam_viec VARCHAR(8) REFERENCES CA_LAM_VIEC(id_ca_lam_viec);
+        `);
+        console.log("PHONG_BAN table updated.");
+
         console.log("Migrations applied successfully!");
     } catch (error) {
         console.error("Error running migrations:", error);

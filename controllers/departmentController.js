@@ -4,7 +4,7 @@ import { generateId } from '../utils/idGenerator.js';
 // Thêm phòng ban mới
 export const addDepartment = async (req, res) => {
     try {
-        const { ten_phong_ban, mo_ta, mo_ta_chuc_nang, id_nguoi_dung } = req.body;
+        const { ten_phong_ban, mo_ta, mo_ta_chuc_nang, id_nguoi_dung, id_ca_lam_viec } = req.body;
         const id_phong_ban = generateId('PB');
         
         console.log("Dữ liệu nhận được khi thêm phòng ban:", req.body);
@@ -12,8 +12,8 @@ export const addDepartment = async (req, res) => {
         const final_mo_ta = mo_ta_chuc_nang || mo_ta || ten_phong_ban;
 
         const result = await pool.query(
-            'INSERT INTO PHONG_BAN (id_phong_ban, ten_phong_ban, mo_ta, ngay_tao, id_nguoi_dung) VALUES ($1, $2, $3, CURRENT_TIMESTAMP, $4) RETURNING *',
-            [id_phong_ban, ten_phong_ban || null, final_mo_ta || null, id_nguoi_dung || null]
+            'INSERT INTO PHONG_BAN (id_phong_ban, ten_phong_ban, mo_ta, ngay_tao, id_nguoi_dung, id_ca_lam_viec) VALUES ($1, $2, $3, CURRENT_TIMESTAMP, $4, $5) RETURNING *',
+            [id_phong_ban, ten_phong_ban || null, final_mo_ta || null, id_nguoi_dung || null, id_ca_lam_viec || null]
         );
 
         res.status(201).json({ success: true, data: result.rows[0] });
@@ -41,11 +41,11 @@ export const getDepartments = async (req, res) => {
 export const updateDepartment = async (req, res) => {
     try {
         const { id } = req.params;
-        const { ten_phong_ban, mo_ta } = req.body;
+        const { ten_phong_ban, mo_ta, id_ca_lam_viec } = req.body;
         
         const result = await pool.query(
-            'UPDATE PHONG_BAN SET ten_phong_ban = $1, mo_ta = $2 WHERE id_phong_ban = $3 RETURNING *',
-            [ten_phong_ban || null, mo_ta || null, id]
+            'UPDATE PHONG_BAN SET ten_phong_ban = $1, mo_ta = $2, id_ca_lam_viec = $3 WHERE id_phong_ban = $4 RETURNING *',
+            [ten_phong_ban || null, mo_ta || null, id_ca_lam_viec || null, id]
         );
 
         if (result.rowCount === 0) {

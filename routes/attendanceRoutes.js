@@ -275,12 +275,73 @@ router.post('/checkAttendance', async (req, res) => {
 
             // Lấy bản ghi chấm công gần nhất trong vòng 24 giờ
             const existingRecord = await pool.query(
-                `SELECT id_cham_cong, gio_vao, gio_ra, ghi_chu FROM CHAM_CONG 
+                `SELECT id_cham_cong, id_ca_lam, gio_vao, gio_ra, ghi_chu FROM CHAM_CONG 
                  WHERE id_nhan_vien = $1 AND gio_vao >= NOW() - INTERVAL '24 HOURS'
                  ORDER BY gio_vao DESC
                  LIMIT 1`,
                 [user.id_nhan_vien]
             );
+
+            let idCaLam = null;
+            if (action === 'check_out' && existingRecord.rowCount > 0 && !existingRecord.rows[0].gio_ra) {
+                idCaLam = existingRecord.rows[0].id_ca_lam;
+            } else {
+                const shiftRes = await pool.query(`
+                    SELECT pb.id_ca_lam_viec 
+                    FROM NHAN_VIEN nv
+                    JOIN PHONG_BAN pb ON nv.id_phong_ban = pb.id_phong_ban
+                    WHERE nv.id_nhan_vien = $1
+                `, [user.id_nhan_vien]);
+                
+                if (shiftRes.rowCount > 0 && shiftRes.rows[0].id_ca_lam_viec) {
+                    idCaLam = shiftRes.rows[0].id_ca_lam_viec;
+                } else {
+                    const defaultShiftRes = await pool.query('SELECT id_ca_lam_viec FROM CA_LAM_VIEC LIMIT 1');
+                    idCaLam = defaultShiftRes.rowCount > 0 ? defaultShiftRes.rows[0].id_ca_lam_viec : null;
+                }
+            }
+
+            // Lấy thông tin ca làm việc để kiểm tra giờ
+            let shiftDetails = null;
+            if (idCaLam) {
+                const sRes = await pool.query(`SELECT gio_vao, gio_ra, mo_vao_truoc, dong_ra_sau FROM CA_LAM_VIEC WHERE id_ca_lam_viec = $1`, [idCaLam]);
+                if (sRes.rowCount > 0) {
+                    shiftDetails = sRes.rows[0];
+                    console.log("-----------------------------------------");
+                    console.log("Mở chấm công vào trước (phút) của phòng ban đó:", shiftDetails.mo_vao_truoc);
+                    console.log("Đóng chấm công ra sau (phút) của phòng ban đó:", shiftDetails.dong_ra_sau);
+                    console.log("-----------------------------------------");
+                }
+            }
+
+            if (shiftDetails && shiftDetails.gio_vao && shiftDetails.gio_ra) {
+                const now = new Date();
+                const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+                const dVao = new Date(shiftDetails.gio_vao);
+                const vaoMinutes = dVao.getHours() * 60 + dVao.getMinutes();
+                
+                const dRa = new Date(shiftDetails.gio_ra);
+                let raMinutes = dRa.getHours() * 60 + dRa.getMinutes();
+                if (raMinutes < vaoMinutes) raMinutes += 1440;
+
+                const mo_vao_truoc = shiftDetails.mo_vao_truoc || 60;
+                const dong_ra_sau = shiftDetails.dong_ra_sau || 120;
+
+                if (action === 'check_out') {
+                    let checkCurrentMins = currentMinutes;
+                    if (checkCurrentMins < vaoMinutes && raMinutes > 1440) {
+                        checkCurrentMins += 1440;
+                    }
+                    if (checkCurrentMins > (raMinutes + dong_ra_sau)) {
+                        return res.status(400).json({ success: false, message: `Đã đóng chấm công ca này! (Đóng sau ${dong_ra_sau} phút)` });
+                    }
+                } else {
+                    if (currentMinutes < (vaoMinutes - mo_vao_truoc)) {
+                        return res.status(400).json({ success: false, message: `Chưa đến giờ mở chấm công ca này! (Mở trước ${mo_vao_truoc} phút)` });
+                    }
+                }
+            }
 
             let timeRecorded;
             let additionalNote = '';
@@ -317,9 +378,7 @@ router.post('/checkAttendance', async (req, res) => {
                     return res.status(400).json({ success: false, message: 'Bạn đã chấm công vào rồi, vui lòng chấm công ra.' });
                 }
 
-                // Lấy id_ca_lam mặc định
-                const shiftRes = await pool.query('SELECT id_ca_lam_viec FROM CA_LAM_VIEC LIMIT 1');
-                const idCaLam = shiftRes.rowCount > 0 ? shiftRes.rows[0].id_ca_lam_viec : null;
+                // Bỏ qua đoạn lấy id_ca_lam vì đã lấy ở trên
 
                 // Chưa check-in → tạo bản ghi mới
                 const { lateReason } = req.body;
