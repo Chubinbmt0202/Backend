@@ -209,7 +209,7 @@ export const getAllAttendance = async (req, res) => {
                 const parts = formatter.formatToParts(inDate);
                 const h = parseInt(parts.find(p => p.type === 'hour').value, 10) % 24;
                 const m = parseInt(parts.find(p => p.type === 'minute').value, 10);
-                
+
                 if (h * 60 + m > 8 * 60) {
                     status = 'late';
                 } else {
@@ -490,7 +490,7 @@ export const getEmployeeAttendanceHistory = async (req, res) => {
                 const parts = formatter.formatToParts(inDate);
                 const h = parseInt(parts.find(p => p.type === 'hour').value, 10) % 24;
                 const m = parseInt(parts.find(p => p.type === 'minute').value, 10);
-                
+
                 if (h * 60 + m > 8 * 60) {
                     status = 'late';
                 } else {
@@ -663,7 +663,7 @@ export const updateLateExplanationStatus = async (req, res) => {
 export const getAttendanceTrend = async (req, res) => {
     try {
         const { days = 7 } = req.query;
-        
+
         // 1. Thống kê theo ngày (7 ngày gần nhất)
         const trendQuery = `
             SELECT 
@@ -677,7 +677,7 @@ export const getAttendanceTrend = async (req, res) => {
             GROUP BY log_date
             ORDER BY log_date ASC
         `;
-        
+
         const trendResult = await pool.query(trendQuery, [days]);
 
         // 2. Tỷ lệ đi muộn theo phòng ban hôm nay (hoặc 7 ngày)
@@ -692,7 +692,7 @@ export const getAttendanceTrend = async (req, res) => {
               AND (EXTRACT(HOUR FROM cc.gio_vao) * 60 + EXTRACT(MINUTE FROM cc.gio_vao) > 8 * 60)
             GROUP BY pb.ten_phong_ban
         `;
-        
+
         const lateByDeptResult = await pool.query(lateByDeptQuery, [days]);
 
         res.status(200).json({
