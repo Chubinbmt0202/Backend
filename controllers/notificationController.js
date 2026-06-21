@@ -1,12 +1,12 @@
 import pool from '../config/db.js';
 import admin from '../config/firebase.js';
-import { generateId } from '../utils/idGenerator.js';
-import { sendPushNotification } from '../utils/notification.js';
+import { taoId } from '../utils/idGenerator.js';
+import { guiThongBaoPush } from '../utils/notification.js';
 
 // Hàm nội bộ để tạo thông báo (sử dụng trong hệ thống và API)
-export const createNotificationHelper = async (employeeId, title, content, type = 'SYSTEM') => {
+export const taoThongBaoHelper = async (employeeId, title, content, type = 'SYSTEM') => {
     try {
-        const id = generateId('TB');
+        const id = taoId('TB');
 
         // 1. Lưu vào PostgreSQL
         const insertQuery = `
@@ -40,7 +40,7 @@ export const createNotificationHelper = async (employeeId, title, content, type 
             const fcmToken = empResult.rows[0]?.fcm_token;
 
             if (fcmToken) {
-                await sendPushNotification(fcmToken, title, content, {
+                await guiThongBaoPush(fcmToken, title, content, {
                     notificationId: id.toString(),
                     type: type.toString()
                 });
@@ -54,13 +54,13 @@ export const createNotificationHelper = async (employeeId, title, content, type 
 
         return newNotification;
     } catch (error) {
-        console.error('Lỗi helper createNotificationHelper:', error.message);
+        console.error('Lỗi helper taoThongBaoHelper:', error.message);
         throw error;
     }
 };
 
 // API tạo thông báo thủ công (Dành cho Admin hoặc test)
-export const createNotification = async (req, res) => {
+export const taoThongBao = async (req, res) => {
     try {
         const { employeeId, title, content, type } = req.body;
         if (!employeeId || !title || !content) {
@@ -70,7 +70,7 @@ export const createNotification = async (req, res) => {
             });
         }
 
-        const notification = await createNotificationHelper(employeeId, title, content, type);
+        const notification = await taoThongBaoHelper(employeeId, title, content, type);
         return res.status(201).json({
             success: true,
             message: 'Tạo thông báo thành công!',
@@ -86,7 +86,7 @@ export const createNotification = async (req, res) => {
 };
 
 // API lấy danh sách thông báo của 1 nhân viên
-export const getEmployeeNotifications = async (req, res) => {
+export const layThongBaoNhanVien = async (req, res) => {
     try {
         const { employeeId } = req.params;
         if (!employeeId) {
@@ -120,7 +120,7 @@ export const getEmployeeNotifications = async (req, res) => {
 };
 
 // API Đánh dấu 1 thông báo là đã đọc
-export const markAsRead = async (req, res) => {
+export const danhDauDaDoc = async (req, res) => {
     try {
         const { id } = req.params;
 
@@ -169,7 +169,7 @@ export const markAsRead = async (req, res) => {
 };
 
 // API Đánh dấu TẤT CẢ thông báo của nhân viên là đã đọc
-export const markAllAsRead = async (req, res) => {
+export const danhDauTatCaDaDoc = async (req, res) => {
     try {
         const { employeeId } = req.body;
         if (!employeeId) {
@@ -219,7 +219,7 @@ export const markAllAsRead = async (req, res) => {
 };
 
 // API Xóa 1 thông báo
-export const deleteNotification = async (req, res) => {
+export const xoaThongBao = async (req, res) => {
     try {
         const { id } = req.params;
 

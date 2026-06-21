@@ -1,10 +1,10 @@
 import express from 'express';
-import { addRole, assignRole, getRoles } from '../controllers/roleController.js';
+import { themVaiTro, ganVaiTro, layDanhSachVaiTro } from '../controllers/roleController.js';
 
 const router = express.Router();
 
-router.post('/add', addRole);
-router.post('/assign', assignRole);
-router.get('/', getRoles);
+router.post('/add', themVaiTro);
+router.post('/assign', ganVaiTro);
+router.get('/', layDanhSachVaiTro);
 
 export default router;

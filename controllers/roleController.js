@@ -1,15 +1,15 @@
 import pool from '../config/db.js';
-import { generateId } from '../utils/idGenerator.js';
+import { taoId } from '../utils/idGenerator.js';
 
 // Thêm vai trò mới
-export const addRole = async (req, res) => {
+export const themVaiTro = async (req, res) => {
     try {
         const { ten_vai_tro, mo_ta } = req.body;
         if (!ten_vai_tro) {
             return res.status(400).json({ success: false, message: 'Tên vai trò là bắt buộc.' });
         }
 
-        const id_vai_tro = generateId('VT');
+        const id_vai_tro = taoId('VT');
 
         const result = await pool.query(
             'INSERT INTO VAI_TRO (id_vai_tro, ten_vai_tro, mo_ta) VALUES ($1, $2, $3) RETURNING *',
@@ -24,7 +24,7 @@ export const addRole = async (req, res) => {
 };
 
 // Phân quyền cho tài khoản (gán vai trò)
-export const assignRole = async (req, res) => {
+export const ganVaiTro = async (req, res) => {
     try {
         const { id_tai_khoan, id_vai_tro } = req.body;
         if (!id_tai_khoan || !id_vai_tro) {
@@ -47,7 +47,7 @@ export const assignRole = async (req, res) => {
     }
 };
 
-export const getRoles = async (req, res) => {
+export const layDanhSachVaiTro = async (req, res) => {
     try {
         const result = await pool.query('SELECT * FROM VAI_TRO ORDER BY id_vai_tro ASC');
         res.status(200).json({ success: true, data: result.rows });

@@ -1,5 +1,5 @@
 import pool from '../config/db.js';
-import { findBestMatch } from '../utils/faceUtils.js';
+import { timKetQuaTotNhat } from '../utils/faceUtils.js';
 
 const normalizeEmbedding = (raw) => {
     if (raw == null) return raw;
@@ -16,7 +16,7 @@ const normalizeEmbedding = (raw) => {
 /**
  * Controller API Lấy trạng thái chấm công của nhân viên trong ngày
  */
-export const getAttendanceStatus = async (req, res) => {
+export const layTrangThaiDiemDanh = async (req, res) => {
     try {
         const { userId } = req.params;
         const { date } = req.query;
@@ -71,7 +71,7 @@ export const getAttendanceStatus = async (req, res) => {
 /**
  * Controller API Lấy danh sách chấm công của tất cả nhân viên trong ngày
  */
-export const getAllAttendance = async (req, res) => {
+export const layTatCaDiemDanh = async (req, res) => {
     try {
         const { date } = req.query;
         const queryDate = date || new Date().toISOString().split('T')[0];
@@ -257,7 +257,7 @@ export const getAllAttendance = async (req, res) => {
 /**
  * Controller API Xác thực khuôn mặt để chấm công
  */
-export const verifyAttendanceFace = async (req, res) => {
+export const xacThucKhuonMatDiemDanh = async (req, res) => {
     try {
         const { userId, embedding } = req.body;
 
@@ -286,7 +286,7 @@ export const verifyAttendanceFace = async (req, res) => {
         }
 
         const storedData = userResult.rows[0];
-        const match = findBestMatch(embedding, normalizeEmbedding(storedData.du_lieu_khuon_mat));
+        const match = timKetQuaTotNhat(embedding, normalizeEmbedding(storedData.du_lieu_khuon_mat));
 
         const similarity = match.bestSimilarity;
         const minSimilarity = 80;
@@ -322,7 +322,7 @@ export const verifyAttendanceFace = async (req, res) => {
 /**
  * Controller API Lấy lịch sử chấm công của 1 nhân viên
  */
-export const getEmployeeAttendanceHistory = async (req, res) => {
+export const layLichSuDiemDanhNhanVien = async (req, res) => {
     try {
         const { userId } = req.params;
 
@@ -537,7 +537,7 @@ export const getEmployeeAttendanceHistory = async (req, res) => {
 /**
  * Lấy danh sách tất cả giải trình đi trễ (cho HR/Admin)
  */
-export const getLateExplanations = async (req, res) => {
+export const layDanhSachGiaiTrinhDiMuon = async (req, res) => {
     try {
         const query = `
             SELECT 
@@ -569,7 +569,7 @@ export const getLateExplanations = async (req, res) => {
 /**
  * Lấy danh sách giải trình đi trễ của 1 nhân viên
  */
-export const getEmployeeLateExplanations = async (req, res) => {
+export const layGiaiTrinhDiMuonCuaNhanVien = async (req, res) => {
     try {
         const { employeeId } = req.params;
         const query = `
@@ -598,7 +598,7 @@ export const getEmployeeLateExplanations = async (req, res) => {
 /**
  * Cập nhật trạng thái giải trình đi trễ (Duyệt/Từ chối)
  */
-export const updateLateExplanationStatus = async (req, res) => {
+export const capNhatTrangThaiGiaiTrinh = async (req, res) => {
     try {
         const { id_giai_trinh, status, id_nguoi_duyet, ghi_chu } = req.body;
         if (!id_giai_trinh || status === undefined) {
@@ -630,10 +630,10 @@ export const updateLateExplanationStatus = async (req, res) => {
 
         // Gửi thông báo cho nhân viên về kết quả duyệt đơn giải trình
         try {
-            const { createNotificationHelper } = await import('./notificationController.js');
+            const { taoThongBaoHelper } = await import('./notificationController.js');
             const giaiTrinh = result.rows[0];
             const statusText = status === 'approved' ? 'chấp thuận' : 'từ chối';
-            await createNotificationHelper(
+            await taoThongBaoHelper(
                 giaiTrinh.id_nhan_vien,
                 "Kết quả giải trình đi trễ 📝",
                 `Giải trình đi trễ ngày ${new Date(giaiTrinh.ngay_giai_trinh).toLocaleDateString('vi-VN')} của bạn đã được ${statusText}.`,
@@ -660,7 +660,7 @@ export const updateLateExplanationStatus = async (req, res) => {
 /**
  * Controller API Lấy thống kê xu hướng chấm công (Trend)
  */
-export const getAttendanceTrend = async (req, res) => {
+export const layXuHuongDiemDanh = async (req, res) => {
     try {
         const { days = 7 } = req.query;
 

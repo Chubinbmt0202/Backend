@@ -1,7 +1,7 @@
 import pool from '../config/db.js';
 import supabase from '../config/supabaseClient.js';
-import { generateId } from '../utils/idGenerator.js';
-import { createNotificationHelper } from './notificationController.js';
+import { taoId } from '../utils/idGenerator.js';
+import { taoThongBaoHelper } from './notificationController.js';
 import admin from '../config/firebase.js';
 
 // Helper function to convert DD/MM/YYYY to YYYY-MM-DD
@@ -28,7 +28,7 @@ const mapLeaveTypeToId = async (typeName) => {
     }
 };
 
-export const createLeaveRequest = async (req, res) => {
+export const taoYeuCauNghiPhep = async (req, res) => {
     try {
         const {
             leaveType,
@@ -135,7 +135,7 @@ export const createLeaveRequest = async (req, res) => {
         }
 
         // 5. Generate ID and Insert
-        const id_don_xin_nghi = generateId('DN');
+        const id_don_xin_nghi = taoId('DN');
 
         const query = `
             INSERT INTO DON_XIN_NGHI (
@@ -182,7 +182,7 @@ export const createLeaveRequest = async (req, res) => {
             const empName = empResult.rows[0]?.ho_va_ten || "Một nhân viên";
 
             for (const hr of hrResult.rows) {
-                await createNotificationHelper(
+                await taoThongBaoHelper(
                     hr.id_nhan_vien,
                     "Đơn xin nghỉ mới 📩",
                     `${empName} vừa gửi một đơn xin nghỉ phép. Vui lòng kiểm tra và duyệt.`,
@@ -191,7 +191,7 @@ export const createLeaveRequest = async (req, res) => {
             }
 
             // Đồng bộ lên kênh admin_notifications cho Web App (AdminTime)
-            const notifId = generateId('TB');
+            const notifId = taoId('TB');
             await admin.database().ref(`admin_notifications/${notifId}`).set({
                 id_thong_bao: notifId,
                 id_nhan_vien: id_nhan_vien,
@@ -223,7 +223,7 @@ export const createLeaveRequest = async (req, res) => {
     }
 };
 
-export const getEmployeeLeaves = async (req, res) => {
+export const layDonNghiPhepNhanVien = async (req, res) => {
     try {
         const { employeeId } = req.params;
 
@@ -254,7 +254,7 @@ export const getEmployeeLeaves = async (req, res) => {
     }
 };
 
-export const getAllLeaveRequests = async (req, res) => {
+export const layTatCaDonNghiPhep = async (req, res) => {
     try {
         const query = `
             SELECT 
@@ -288,7 +288,7 @@ export const getAllLeaveRequests = async (req, res) => {
     }
 };
 
-export const updateLeaveStatus = async (req, res) => {
+export const capNhatTrangThaiNghiPhep = async (req, res) => {
     try {
         const { id_don_xin_nghi, status, id_nguoi_duyet, ghi_chu } = req.body;
 
@@ -325,7 +325,7 @@ export const updateLeaveStatus = async (req, res) => {
         try {
             const donXinNghi = result.rows[0];
             const trangThaiStr = status === 'approved' ? 'chấp thuận' : 'từ chối';
-            await createNotificationHelper(
+            await taoThongBaoHelper(
                 donXinNghi.id_nguoi_dung,
                 "Kết quả đơn xin nghỉ 📝",
                 `Đơn xin nghỉ phép của bạn đã bị ${trangThaiStr}. Vui lòng kiểm tra lại.`,
@@ -349,7 +349,7 @@ export const updateLeaveStatus = async (req, res) => {
     }
 };
 
-export const getAllLeaveTypes = async (req, res) => {
+export const layTatCaLoaiNghiPhep = async (req, res) => {
     try {
         const query = `SELECT * FROM LOAI_PHEP ORDER BY id_loai_phep ASC`;
         const result = await pool.query(query);
@@ -367,7 +367,7 @@ export const getAllLeaveTypes = async (req, res) => {
     }
 };
 
-export const updateLeaveType = async (req, res) => {
+export const capNhatLoaiNghiPhep = async (req, res) => {
     try {
         const { id } = req.params;
         const { ten_phep, so_ngay_toi_da, co_luong, mo_ta } = req.body;

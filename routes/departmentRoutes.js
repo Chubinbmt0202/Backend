@@ -1,11 +1,11 @@
 import express from 'express';
-import { addDepartment, getDepartments, updateDepartment, deleteDepartment } from '../controllers/departmentController.js';
+import { themPhongBan, layDanhSachPhongBan, capNhatPhongBan, xoaPhongBan } from '../controllers/departmentController.js';
 
 const router = express.Router();
 
-router.post('/add', addDepartment);
-router.get('/', getDepartments);
-router.put('/:id', updateDepartment);
-router.delete('/:id', deleteDepartment);
+router.post('/add', themPhongBan);
+router.get('/', layDanhSachPhongBan);
+router.put('/:id', capNhatPhongBan);
+router.delete('/:id', xoaPhongBan);
 
 export default router;

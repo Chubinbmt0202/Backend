@@ -1,6 +1,6 @@
 import supabase from '../config/supabaseClient.js';
 
-export const uploadFile = async (req, res) => {
+export const taiLenTep = async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ success: false, message: 'Vui lòng chọn một file đính kèm.' });

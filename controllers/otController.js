@@ -1,9 +1,9 @@
 import pool from '../config/db.js';
 import admin from '../config/firebase.js';
-import { generateId } from '../utils/idGenerator.js';
-import { createNotificationHelper } from './notificationController.js';
+import { taoId } from '../utils/idGenerator.js';
+import { taoThongBaoHelper } from './notificationController.js';
 
-export const createOTRequest = async (req, res) => {
+export const taoDonTangCa = async (req, res) => {
     try {
         const { employeeId, otDate, startTime, expectedEndTime, reason } = req.body;
         
@@ -54,7 +54,7 @@ export const createOTRequest = async (req, res) => {
             });
         }
 
-        const idDonOt = generateId('OT');
+        const idDonOt = taoId('OT');
         
         const query = `
             INSERT INTO DON_DANG_KY_OT (id_don_ot, id_nhan_vien, ngay_dang_ky_ot, gio_bat_dau, gio_ket_thuc_du_kien, ly_do, trang_thai)
@@ -80,7 +80,7 @@ export const createOTRequest = async (req, res) => {
             const empName = empResult.rows[0]?.ho_va_ten || "Một nhân viên";
 
             for (const hr of hrResult.rows) {
-                await createNotificationHelper(
+                await taoThongBaoHelper(
                     hr.id_nhan_vien,
                     "Đơn xin tăng ca mới 📩",
                     `${empName} vừa gửi một đơn đăng ký tăng ca. Vui lòng kiểm tra và duyệt.`,
@@ -89,7 +89,7 @@ export const createOTRequest = async (req, res) => {
             }
 
             // Đồng bộ lên kênh admin_notifications cho Web App (AdminTime)
-            const notifId = generateId('TB');
+            const notifId = taoId('TB');
             await admin.database().ref(`admin_notifications/${notifId}`).set({
                 id_thong_bao: notifId,
                 id_nhan_vien: employeeId,
@@ -121,7 +121,7 @@ export const createOTRequest = async (req, res) => {
     }
 };
 
-export const getAllOTRequests = async (req, res) => {
+export const layTatCaDonTangCa = async (req, res) => {
     try {
         const query = `
             SELECT 
@@ -151,7 +151,7 @@ export const getAllOTRequests = async (req, res) => {
     }
 };
 
-export const updateOTStatus = async (req, res) => {
+export const capNhatTrangThaiTangCa = async (req, res) => {
     try {
         const { id_don_ot, status, ghi_chu } = req.body;
 
@@ -183,7 +183,7 @@ export const updateOTStatus = async (req, res) => {
         try {
             const donOT = result.rows[0];
             const trangThaiStr = status === 'DA_DUYET' ? 'chấp thuận' : 'từ chối';
-            await createNotificationHelper(
+            await taoThongBaoHelper(
                 donOT.id_nhan_vien,
                 "Kết quả đơn đăng ký tăng ca 📝",
                 `Đơn xin tăng ca của bạn vào ngày ${new Date(donOT.ngay_dang_ky_ot).toLocaleDateString('vi-VN')} đã bị ${trangThaiStr}. ${ghi_chu ? `Ghi chú: ${ghi_chu}` : ''}`,
@@ -207,7 +207,7 @@ export const updateOTStatus = async (req, res) => {
     }
 };
 
-export const getEmployeeOTRequests = async (req, res) => {
+export const layDonTangCaNhanVien = async (req, res) => {
     try {
         const { employeeId } = req.params;
 

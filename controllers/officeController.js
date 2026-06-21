@@ -1,8 +1,8 @@
 import pool from '../config/db.js';
-import { generateId } from '../utils/idGenerator.js';
+import { taoId } from '../utils/idGenerator.js';
 
 // Thêm văn phòng và thiết lập luôn toạ độ GPS
-export const addOfficeGPS = async (req, res) => {
+export const themToaDoVanPhong = async (req, res) => {
     try {
         const { locationName, address, longitude, latitude, radius, wifiName, wifiAddress } = req.body;
         console.log("Dữ liệu nhận được khi thêm địa chỉ văn phòng: ", req.body);
@@ -14,7 +14,7 @@ export const addOfficeGPS = async (req, res) => {
             });
         }
 
-        const id_van_phong = generateId('VP');
+        const id_van_phong = taoId('VP');
 
         // Thêm vào bảng VAN_PHONG
         const query = `
@@ -35,7 +35,7 @@ export const addOfficeGPS = async (req, res) => {
 
         // Thêm wifi mặc định nếu có truyền vào
         if (wifiName && wifiAddress) {
-            const id_wifi = generateId('WF');
+            const id_wifi = taoId('WF');
             await pool.query(
                 'INSERT INTO WIFI (id_wifi, ten_wifi, dia_chi_wifi, id_van_phong) VALUES ($1, $2, $3, $4)',
                 [id_wifi, wifiName, wifiAddress, id_van_phong]
@@ -56,7 +56,7 @@ export const addOfficeGPS = async (req, res) => {
 };
 
 // Hàm lấy danh sách văn phòng
-export const getOffices = async (req, res) => {
+export const layDanhSachVanPhong = async (req, res) => {
     try {
         const query = `
             SELECT 
@@ -84,7 +84,7 @@ export const getOffices = async (req, res) => {
 };
 
 // Cập nhật văn phòng
-export const updateOfficeGPS = async (req, res) => {
+export const capNhatToaDoVanPhong = async (req, res) => {
     try {
         const { id } = req.params;
         const { locationName, address, longitude, latitude, radius, wifiName, wifiAddress } = req.body;
@@ -138,7 +138,7 @@ export const updateOfficeGPS = async (req, res) => {
 };
 
 // Xóa văn phòng
-export const deleteOffice = async (req, res) => {
+export const xoaVanPhong = async (req, res) => {
     try {
         const { id } = req.params;
         if (!id) {
@@ -172,7 +172,7 @@ export const deleteOffice = async (req, res) => {
 // =======================================
 
 // Thêm/Cập nhật thông tin Wifi cho văn phòng (Sử dụng params ID)
-export const updateOfficeWifi = async (req, res) => {
+export const capNhatWifiVanPhong = async (req, res) => {
     try {
         const { id } = req.params;
         const { wifiName, wifiAddress } = req.body;
@@ -209,7 +209,7 @@ export const updateOfficeWifi = async (req, res) => {
 };
 
 // Thêm thông tin Wifi (Truyền id_van_phong trong body)
-export const addOfficeWifi = async (req, res) => {
+export const themWifiVanPhong = async (req, res) => {
     try {
         const { id_van_phong, wifiName, wifiAddress } = req.body;
 
@@ -220,7 +220,7 @@ export const addOfficeWifi = async (req, res) => {
             });
         }
 
-        const id_wifi = generateId('WF');
+        const id_wifi = taoId('WF');
 
         const query = `
             INSERT INTO WIFI (id_wifi, ten_wifi, dia_chi_wifi, id_van_phong) 
@@ -246,7 +246,7 @@ export const addOfficeWifi = async (req, res) => {
 };
 
 // Xoá thông tin Wifi khỏi văn phòng (Set NULL)
-export const deleteOfficeWifi = async (req, res) => {
+export const xoaWifiVanPhong = async (req, res) => {
     try {
         const { id } = req.params;
 
@@ -278,7 +278,7 @@ export const deleteOfficeWifi = async (req, res) => {
 };
 
 // Lấy danh sách Wifi (những văn phòng đã cấu hình Wifi)
-export const getAllWifis = async (req, res) => {
+export const layTatCaWifi = async (req, res) => {
     try {
         const query = `
             SELECT 

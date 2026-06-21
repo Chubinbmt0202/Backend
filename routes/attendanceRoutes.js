@@ -1,30 +1,30 @@
 import express from 'express';
 import {
-    getAttendanceStatus,
-    getAllAttendance,
-    getEmployeeAttendanceHistory,
-    verifyAttendanceFace,
-    getLateExplanations,
-    getEmployeeLateExplanations,
-    updateLateExplanationStatus,
-    getAttendanceTrend
+    layTrangThaiDiemDanh,
+    layTatCaDiemDanh,
+    layLichSuDiemDanhNhanVien,
+    xacThucKhuonMatDiemDanh,
+    layDanhSachGiaiTrinhDiMuon,
+    layGiaiTrinhDiMuonCuaNhanVien,
+    capNhatTrangThaiGiaiTrinh,
+    layXuHuongDiemDanh
 } from '../controllers/attendanceController.js';
 
 import pool from '../config/db.js';
-import { generateId } from '../utils/idGenerator.js';
+import { taoId } from '../utils/idGenerator.js';
 import admin from '../config/firebase.js';
-import { createNotificationHelper } from '../controllers/notificationController.js';
+import { taoThongBaoHelper } from '../controllers/notificationController.js';
 
 const router = express.Router();
 
 // GET /api/attendance/late-explanations/all - Lấy tất cả giải trình đi trễ (cho HR)
-router.get('/late-explanations/all', getLateExplanations);
+router.get('/late-explanations/all', layDanhSachGiaiTrinhDiMuon);
 
 // GET /api/attendance/late-explanations/employee/:employeeId - Lấy giải trình đi trễ của 1 nhân viên
-router.get('/late-explanations/employee/:employeeId', getEmployeeLateExplanations);
+router.get('/late-explanations/employee/:employeeId', layGiaiTrinhDiMuonCuaNhanVien);
 
 // PATCH /api/attendance/late-explanations/update-status - Phê duyệt hoặc từ chối giải trình
-router.patch('/late-explanations/update-status', updateLateExplanationStatus);
+router.patch('/late-explanations/update-status', capNhatTrangThaiGiaiTrinh);
 
 
 // ==========================================
@@ -76,19 +76,19 @@ checkMicroserviceConnection();
 // CÁC ROUTE CHẤM CÔNG CƠ BẢN
 // ==========================================
 // POST /api/attendance/verify - Xác thực khuôn mặt chấm công
-router.post('/verify', verifyAttendanceFace);
+router.post('/verify', xacThucKhuonMatDiemDanh);
 
 // GET /api/attendance/list/daily?date=YYYY-MM-DD - Lấy danh sách chấm công của tất cả NV
-router.get('/list/daily', getAllAttendance);
+router.get('/list/daily', layTatCaDiemDanh);
 
 // GET /api/attendance/summary/trend - Lấy thống kê xu hướng chấm công (7 ngày hoặc 30 ngày)
-router.get('/summary/trend', getAttendanceTrend);
+router.get('/summary/trend', layXuHuongDiemDanh);
 
 // GET /api/attendance/history/:userId - Lấy lịch sử chấm công của 1 NV
-router.get('/history/:userId', getEmployeeAttendanceHistory);
+router.get('/history/:userId', layLichSuDiemDanhNhanVien);
 
 // GET /api/attendance/:userId?date=YYYY-MM-DD - Lấy trạng thái chấm công của 1 NV
-router.get('/:userId', getAttendanceStatus);
+router.get('/:userId', layTrangThaiDiemDanh);
 
 // =========================================================================
 // API 1: ĐĂNG KÝ KHUÔN MẶT (GỌI SANG PYTHON)
@@ -157,7 +157,7 @@ router.post('/testRegister', async (req, res) => {
 
             if (Array.isArray(savedEmbeddings)) {
                 for (const newEmb of embeddings) {
-                    const distances = savedEmbeddings.map(savedEmb => euclideanDistance(savedEmb, newEmb));
+                    const distances = savedEmbeddings.map(savedEmb => khoangCachEuclid(savedEmb, newEmb));
                     const minDistance = Math.min(...distances);
                     if (minDistance <= 10.0) { // THRESHOLD = 10.0 cho Facenet
                         return res.status(400).json({
@@ -258,7 +258,7 @@ router.post('/checkAttendance', async (req, res) => {
         const newEmbedding = aiData.embedding;
 
         // 3. Tiến hành so sánh bằng thuật toán Euclidean
-        const distances = savedEmbeddings.map(savedEmb => euclideanDistance(savedEmb, newEmbedding));
+        const distances = savedEmbeddings.map(savedEmb => khoangCachEuclid(savedEmb, newEmbedding));
         const bestMatchDistance = Math.min(...distances);
 
         console.log(`Độ lệch khuôn mặt: ${bestMatchDistance}`);
@@ -271,7 +271,7 @@ router.post('/checkAttendance', async (req, res) => {
             // 🚀 4. LƯU LỊCH SỬ CHẤM CÔNG VÀO DATABASE (CHAM_CONG)
             // ==========================================
 
-            const id_cham_cong = generateId('CC');
+            const id_cham_cong = taoId('CC');
 
             // Lấy bản ghi chấm công gần nhất trong vòng 24 giờ
             const existingRecord = await pool.query(
@@ -406,7 +406,7 @@ router.post('/checkAttendance', async (req, res) => {
                 // Nếu đi trễ quá giờ cho phép và có giải trình, lưu vào bảng GIAI_TRINH_DI_TRE
                 if (lateReason) {
                     try {
-                        const id_giai_trinh = generateId('GT');
+                        const id_giai_trinh = taoId('GT');
                         await pool.query(
                             `INSERT INTO GIAI_TRINH_DI_TRE (id_giai_trinh, id_nhan_vien, ngay_giai_trinh, gio_vao_tre, ly_do, trang_thai)
                              VALUES ($1, $2, CURRENT_DATE, now(), $3, NULL)`,
@@ -434,7 +434,7 @@ router.post('/checkAttendance', async (req, res) => {
                         }
 
                         // Đồng bộ lên kênh admin_notifications cho Web App (AdminTime)
-                        const notifId = generateId('TB');
+                        const notifId = taoId('TB');
                         await admin.database().ref(`admin_notifications/${notifId}`).set({
                             id_thong_bao: notifId,
                             id_nhan_vien: user.id_nhan_vien,

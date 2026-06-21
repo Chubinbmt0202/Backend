@@ -2,9 +2,9 @@ import pool from '../config/db.js';
 import bcrypt from 'bcrypt';
 import admin from '../config/firebase.js';
 import { v2 as cloudinary } from 'cloudinary';
-import { createNotificationHelper } from './notificationController.js';
-import { findBestMatch } from '../utils/faceUtils.js';
-import { generateId } from '../utils/idGenerator.js';
+import { taoThongBaoHelper } from './notificationController.js';
+import { timKetQuaTotNhat } from '../utils/faceUtils.js';
+import { taoId } from '../utils/idGenerator.js';
 
 const normalizeEmbedding = (raw) => {
     if (raw == null) return raw;
@@ -19,7 +19,7 @@ const normalizeEmbedding = (raw) => {
 };
 
 // Controller API Thêm nhân viên mới (TAI_KHOAN + NHAN_VIEN)
-export const addEmployee = async (req, res) => {
+export const themNhanVien = async (req, res) => {
     console.log("Dữ liệu nhận được:", req.body);
     try {
         const {
@@ -42,8 +42,8 @@ export const addEmployee = async (req, res) => {
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
-        const id_tai_khoan = generateId('TK');
-        const id_nhan_vien = generateId('NV');
+        const id_tai_khoan = taoId('TK');
+        const id_nhan_vien = taoId('NV');
 
         await pool.query('BEGIN');
 
@@ -109,7 +109,7 @@ export const addEmployee = async (req, res) => {
 };
 
 // Controller API Lấy danh sách nhân viên
-export const getEmployees = async (req, res) => {
+export const layDanhSachNhanVien = async (req, res) => {
     try {
         const employees = await pool.query(
             `
@@ -155,7 +155,7 @@ export const getEmployees = async (req, res) => {
 };
 
 // Lấy danh sách nhân viên theo phòng ban
-export const getEmployeesByDepartment = async (req, res) => {
+export const layNhanVienTheoPhongBan = async (req, res) => {
     try {
         const { id } = req.params;
         console.log("ID phòng ban: ", id)
@@ -212,7 +212,7 @@ export const getEmployeesByDepartment = async (req, res) => {
 };
 
 // Lấy 1 nhân viên
-export const getEmployeeByID = async (req, res) => {
+export const layNhanVienTheoID = async (req, res) => {
     try {
         const { id } = req.params;
         console.log("ID nhân viên: ", id)
@@ -308,7 +308,7 @@ export const getEmployeeByID = async (req, res) => {
 };
 
 // Chỉnh sửa thông tin nhân viên
-export const updateEmployee = async (req, res) => {
+export const capNhatNhanVien = async (req, res) => {
     try {
         const { id } = req.params;
         const {
@@ -441,7 +441,7 @@ export const updateEmployee = async (req, res) => {
 
         // Gửi thông báo cho nhân viên về việc thông tin cá nhân đã được thay đổi
         try {
-            await createNotificationHelper(
+            await taoThongBaoHelper(
                 id,
                 "Cập nhật thông tin 📝",
                 "Quản trị viên đã thay đổi thông tin cá nhân của bạn. Vui lòng kiểm tra lại nếu cần thiết.",
@@ -468,7 +468,7 @@ export const updateEmployee = async (req, res) => {
 };
 
 // Xoá 1 nhân viên
-export const deleteEmployee = async (req, res) => {
+export const xoaNhanVien = async (req, res) => {
     try {
         const { id } = req.params;
         console.log("ID nhân viên cần xóa: ", id)
@@ -556,7 +556,7 @@ export const deleteEmployee = async (req, res) => {
 }
 
 // Controller API Upload ảnh khuôn mặt
-export const uploadEmployeeFace = async (req, res) => {
+export const taiLenKhuonMatNhanVien = async (req, res) => {
     try {
         // 1. Lấy dữ liệu từ Mobile gửi lên
         // Lưu ý: Client (React Native) phải gửi body dạng { userId: ..., embeddings: [...] }
@@ -599,7 +599,7 @@ export const uploadEmployeeFace = async (req, res) => {
             const storedEmbeddings = normalizeEmbedding(row.du_lieu_khuon_mat);
             if (Array.isArray(storedEmbeddings)) {
                 for (const newVector of embedding) {
-                    const match = findBestMatch(newVector, storedEmbeddings);
+                    const match = timKetQuaTotNhat(newVector, storedEmbeddings);
                     const minSimilarity = 80; // Ngưỡng nhận diện (80%)
                     if (match.bestSimilarity >= minSimilarity) {
                         return res.status(400).json({
@@ -651,7 +651,7 @@ export const uploadEmployeeFace = async (req, res) => {
 };
 
 // Controller API Yêu cầu cập nhật lại khuôn mặt
-export const requestFaceUpdate = async (req, res) => {
+export const yeuCauCapNhatKhuonMat = async (req, res) => {
     try {
         const { id } = req.params;
         console.log("ID nhân viên params: ", req.params)
@@ -710,7 +710,7 @@ export const requestFaceUpdate = async (req, res) => {
         // 4. Tạo thông báo lưu trữ riêng cho nhân viên này trong Database PostgreSQL & Firebase Realtime DB (Hệ thống thông báo mới)
         let notificationCreated = null;
         try {
-            notificationCreated = await createNotificationHelper(
+            notificationCreated = await taoThongBaoHelper(
                 id,
                 "Yêu cầu cập nhật khuôn mặt 📸",
                 "Quản trị viên đã yêu cầu bạn đăng ký lại khuôn mặt mới. Vui lòng thực hiện đăng ký lại khuôn mặt trên ứng dụng.",
@@ -744,7 +744,7 @@ export const requestFaceUpdate = async (req, res) => {
 };
 
 // Controller API Yêu cầu cập nhật lại thông tin cá nhân
-export const requestProfileUpdate = async (req, res) => {
+export const yeuCauCapNhatHoSo = async (req, res) => {
     try {
         const { id } = req.params;
         console.log("Yêu cầu cập nhật thông tin cá nhân cho ID: ", id);
@@ -776,7 +776,7 @@ export const requestProfileUpdate = async (req, res) => {
         // 2. Tạo thông báo lưu trữ riêng cho nhân viên này trong Database PostgreSQL & Firebase Realtime DB
         let notificationCreated = null;
         try {
-            notificationCreated = await createNotificationHelper(
+            notificationCreated = await taoThongBaoHelper(
                 id,
                 "Cập nhật thông tin cá nhân 📝",
                 "Quản trị viên yêu cầu bạn cập nhật lại thông tin cá nhân của mình (Số điện thoại, địa chỉ, ngày sinh...). Vui lòng thực hiện cập nhật sớm.",
@@ -811,7 +811,7 @@ export const requestProfileUpdate = async (req, res) => {
  * Controller API Nhận diện khuôn mặt (Identify)
  * Tìm xem khuôn mặt này là của nhân viên nào trong hệ thống
  */
-export const recognizeEmployeeFace = async (req, res) => {
+export const nhanDienKhuonMatNhanVien = async (req, res) => {
     try {
         const { userId, embedding } = req.body;
         console.log(`Đang xác thực khuôn mặt cho User ID: ${userId}`);
@@ -855,7 +855,7 @@ export const recognizeEmployeeFace = async (req, res) => {
         const storedEmbeddings = normalizeEmbedding(user.du_lieu_khuon_mat);
 
         // 3. Tiến hành so sánh ảnh camera gửi lên với 3 góc mặt đã lưu
-        const match = findBestMatch(embedding, storedEmbeddings);
+        const match = timKetQuaTotNhat(embedding, storedEmbeddings);
         const minSimilarity = 80; // Ngưỡng nhận diện (80%)
 
         // 4. Kiểm tra kết quả và trả về
@@ -894,7 +894,7 @@ export const recognizeEmployeeFace = async (req, res) => {
  * Controller API Lấy thông tin Dashboard cho 1 nhân viên
  * Hiển thị tên, mã nhân viên, lịch sử chấm công, giờ vào/ra hôm nay, đơn xin phép
  */
-export const getEmployeeDashboard = async (req, res) => {
+export const layThongKeNhanVien = async (req, res) => {
     try {
         const { id } = req.params;
 
@@ -1046,7 +1046,7 @@ export const getEmployeeDashboard = async (req, res) => {
 };
 
 // Cập nhật FCM Token cho nhân viên
-export const updateFcmToken = async (req, res) => {
+export const capNhatFcmToken = async (req, res) => {
     try {
         const { employeeId, fcmToken } = req.body;
 
@@ -1088,7 +1088,7 @@ export const updateFcmToken = async (req, res) => {
 };
 
 // Thay đổi mật khẩu nhân viên
-export const changePassword = async (req, res) => {
+export const doiMatKhau = async (req, res) => {
     try {
         const { id } = req.params;
         const new_password = req.body.new_password || req.body.newPassword;

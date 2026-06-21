@@ -1,7 +1,7 @@
 import pool from "../config/db.js";
 import bcrypt from "bcrypt";
 
-export const login = async (req, res) => {
+export const dangNhap = async (req, res) => {
   try {
     const { username, password, wifi_bssid, device_info } = req.body;
     console.log(`\n[LOGIN ATTEMPT] User: ${username} | BSSID: ${wifi_bssid || "N/A"}`);
@@ -154,7 +154,7 @@ export const login = async (req, res) => {
   }
 };
 
-export const logout = async (req, res) => {
+export const dangXuat = async (req, res) => {
   try {
     // Hủy session server-side
     req.session.destroy((err) => {

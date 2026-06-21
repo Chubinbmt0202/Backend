@@ -1,5 +1,5 @@
 import pool from '../config/db.js';
-import { generateId } from '../utils/idGenerator.js';
+import { taoId } from '../utils/idGenerator.js';
 
 // Helper: Chuyển "HH:mm" thành timestamp hợp lệ cho PostgreSQL
 const timeToTimestamp = (timeStr) => {
@@ -31,7 +31,7 @@ const formatShiftTimes = (row) => {
     };
 };
 
-export const addShift = async (req, res) => {
+export const themCaLamViec = async (req, res) => {
     try {
         console.log("Dữ liệu nhận được: ", req.body)
         const { shift_name, start_time, end_time, late_tolerance_mins, coefficient, has_lunch_break, lunch_start_time, lunch_end_time, check_in_before_mins, check_out_after_mins } = req.body;
@@ -40,7 +40,7 @@ export const addShift = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Vui lòng cung cấp đầy đủ tên ca, giờ vào, giờ ra' });
         }
 
-        const id_ca_lam = generateId('CA');
+        const id_ca_lam = taoId('CA');
 
         const query = `
             INSERT INTO CA_LAM_VIEC (id_ca_lam_viec, ten_ca, gio_vao, gio_ra, phut_cho_phep_tre, so_cong, nghi_trua, bat_dau_nghi, ket_thuc_nghi, mo_vao_truoc, dong_ra_sau) 
@@ -81,7 +81,7 @@ export const addShift = async (req, res) => {
     }
 }
 
-export const getAllShifts = async (req, res) => {
+export const layTatCaCaLamViec = async (req, res) => {
     try {
         const query = `
             SELECT 
@@ -109,7 +109,7 @@ export const getAllShifts = async (req, res) => {
     }
 }
 
-export const getMyShift = async (req, res) => {
+export const layCaLamViecCuaToi = async (req, res) => {
     try {
         const { id } = req.params;
         if (!id) return res.status(400).json({ success: false, message: 'ID không hợp lệ' });
@@ -159,7 +159,7 @@ export const getMyShift = async (req, res) => {
     }
 }
 
-export const updateShift = async (req, res) => {
+export const capNhatCaLamViec = async (req, res) => {
     try {
         const { id } = req.params;
         const { shift_name, start_time, end_time, late_tolerance_mins, coefficient, has_lunch_break, lunch_start_time, lunch_end_time, check_in_before_mins, check_out_after_mins } = req.body;
@@ -218,7 +218,7 @@ export const updateShift = async (req, res) => {
     }
 };
 
-export const deleteShift = async (req, res) => {
+export const xoaCaLamViec = async (req, res) => {
     try {
         const { id } = req.params;
         console.log(`Đang xóa ca làm ID: ${id}`);

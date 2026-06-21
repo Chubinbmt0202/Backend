@@ -1,11 +1,11 @@
 import pool from '../config/db.js';
-import { generateId } from '../utils/idGenerator.js';
+import { taoId } from '../utils/idGenerator.js';
 
 // Thêm phòng ban mới
-export const addDepartment = async (req, res) => {
+export const themPhongBan = async (req, res) => {
     try {
         const { ten_phong_ban, mo_ta, mo_ta_chuc_nang, id_nguoi_dung, id_ca_lam_viec } = req.body;
-        const id_phong_ban = generateId('PB');
+        const id_phong_ban = taoId('PB');
         
         console.log("Dữ liệu nhận được khi thêm phòng ban:", req.body);
 
@@ -23,7 +23,7 @@ export const addDepartment = async (req, res) => {
     }
 };
 
-export const getDepartments = async (req, res) => {
+export const layDanhSachPhongBan = async (req, res) => {
     try {
         const query = `
             SELECT * from PHONG_BAN
@@ -38,7 +38,7 @@ export const getDepartments = async (req, res) => {
 };
 
 // Cập nhật phòng ban
-export const updateDepartment = async (req, res) => {
+export const capNhatPhongBan = async (req, res) => {
     try {
         const { id } = req.params;
         const { ten_phong_ban, mo_ta, id_ca_lam_viec } = req.body;
@@ -60,7 +60,7 @@ export const updateDepartment = async (req, res) => {
 };
 
 // Xóa phòng ban
-export const deleteDepartment = async (req, res) => {
+export const xoaPhongBan = async (req, res) => {
     try {
         const { id } = req.params;
 

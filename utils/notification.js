@@ -7,7 +7,7 @@ import admin from '../config/firebase.js';
  * @param {string} body - Nội dung thông báo
  * @param {object} data - Dữ liệu kèm theo thông báo (tùy chọn)
  */
-export const sendPushNotification = async (token, title, body, data = {}) => {
+export const guiThongBaoPush = async (token, title, body, data = {}) => {
   try {
     // 1. Bỏ qua mock token (thường ở thiết bị giả lập)
     if (token.includes('mock_token')) {
@@ -64,7 +64,7 @@ export const sendPushNotification = async (token, title, body, data = {}) => {
  * @param {string} body 
  * @param {object} data 
  */
-export const sendMulticastNotification = async (tokens, title, body, data = {}) => {
+export const guiThongBaoNhieuNguoi = async (tokens, title, body, data = {}) => {
   try {
     const expoTokens = [];
     const fcmTokens = [];

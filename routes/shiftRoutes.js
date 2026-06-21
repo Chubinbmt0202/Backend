@@ -1,11 +1,11 @@
 import express from 'express';
-import { addShift, getAllShifts, updateShift, deleteShift, getMyShift } from '../controllers/shiftController.js';
+import { themCaLamViec, layTatCaCaLamViec, capNhatCaLamViec, xoaCaLamViec, layCaLamViecCuaToi } from '../controllers/shiftController.js';
 const router = express.Router();
 
-router.get('/getAllShifts', getAllShifts)
-router.get('/myShift/:id', getMyShift)
-router.post('/addShift', addShift)
-router.put('/updateShift/:id', updateShift)
-router.delete('/deleteShift/:id', deleteShift)
+router.get('/getAllShifts', layTatCaCaLamViec)
+router.get('/myShift/:id', layCaLamViecCuaToi)
+router.post('/addShift', themCaLamViec)
+router.put('/updateShift/:id', capNhatCaLamViec)
+router.delete('/deleteShift/:id', xoaCaLamViec)
 
 export default router

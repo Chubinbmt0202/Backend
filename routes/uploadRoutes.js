@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { uploadFile } from '../controllers/uploadController.js';
+import { taiLenTep } from '../controllers/uploadController.js';
 
 const router = express.Router();
 
@@ -12,6 +12,6 @@ const upload = multer({
 });
 
 // POST /api/upload
-router.post('/', upload.single('file'), uploadFile);
+router.post('/', upload.single('file'), taiLenTep);
 
 export default router;

@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { createLeaveRequest, getEmployeeLeaves, getAllLeaveRequests, updateLeaveStatus, getAllLeaveTypes, updateLeaveType } from '../controllers/leaveController.js';
+import { taoYeuCauNghiPhep, layDonNghiPhepNhanVien, layTatCaDonNghiPhep, capNhatTrangThaiNghiPhep, layTatCaLoaiNghiPhep, capNhatLoaiNghiPhep } from '../controllers/leaveController.js';
 
 
 const router = express.Router();
@@ -13,21 +13,21 @@ const upload = multer({
 });
 
 // POST /api/leave/create
-router.post('/create', upload.single('file'), createLeaveRequest);
+router.post('/create', upload.single('file'), taoYeuCauNghiPhep);
 
 // GET /api/leave/all
-router.get('/all', getAllLeaveRequests);
+router.get('/all', layTatCaDonNghiPhep);
 
 // GET /api/leave/history/:employeeId
-router.get('/history/:employeeId', getEmployeeLeaves);
+router.get('/history/:employeeId', layDonNghiPhepNhanVien);
 
 // PATCH /api/leave/update-status
-router.patch('/update-status', updateLeaveStatus);
+router.patch('/update-status', capNhatTrangThaiNghiPhep);
 
 // GET /api/leave/types
-router.get('/types', getAllLeaveTypes);
+router.get('/types', layTatCaLoaiNghiPhep);
 
 // PUT /api/leave/types/:id
-router.put('/types/:id', updateLeaveType);
+router.put('/types/:id', capNhatLoaiNghiPhep);
 
 export default router;
