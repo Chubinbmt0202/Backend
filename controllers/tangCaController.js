@@ -39,10 +39,10 @@ export const taoDonTangCa = async (req, res) => {
             });
         }
 
-        // Kiểm tra xem nhân viên đã đăng ký tăng ca trong ngày này chưa
+        // Kiểm tra xem nhân viên đã có đơn tăng ca nào chờ duyệt hoặc đã duyệt trong ngày này chưa
         const checkQuery = `
             SELECT id_don_ot FROM DON_DANG_KY_OT 
-            WHERE id_nhan_vien = $1 AND ngay_dang_ky_ot = $2
+            WHERE id_nhan_vien = $1 AND ngay_dang_ky_ot = $2 AND trang_thai != 'TU_CHOI'
             LIMIT 1;
         `;
         const existingOT = await pool.query(checkQuery, [employeeId, otDate]);
@@ -50,7 +50,7 @@ export const taoDonTangCa = async (req, res) => {
         if (existingOT.rowCount > 0) {
             return res.status(400).json({
                 success: false,
-                message: 'Bạn đã đăng ký tăng ca cho ngày này rồi. Mỗi ngày chỉ được đăng ký tối đa 1 lần.'
+                message: 'Bạn đã có đơn đăng ký tăng ca đang chờ duyệt hoặc đã được duyệt cho ngày này rồi.'
             });
         }
 

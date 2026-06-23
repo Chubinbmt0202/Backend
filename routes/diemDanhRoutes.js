@@ -14,6 +14,7 @@ import pool from '../config/db.js';
 import { taoId } from '../utils/tienIchTaoId.js';
 import admin from '../config/firebase.js';
 import { taoThongBaoHelper } from '../controllers/thongBaoController.js';
+import { khoangCachEuclid } from '../utils/tienIchKhuonMat.js';
 
 const router = express.Router();
 
@@ -33,11 +34,6 @@ router.patch('/late-explanations/update-status', capNhatTrangThaiGiaiTrinh);
 // Đảm bảo IP này trùng với IP mà server Python đang chạy (hoặc dùng localhost/127.0.0.1 nếu chạy cùng máy)
 const PYTHON_AI_URL = 'http://127.0.0.1:8000/api/extract';
 const PYTHON_HEALTH_URL = 'http://127.0.0.1:8000/api/health';
-
-// Hàm tính khoảng cách giữa 2 vector khuôn mặt (Euclidean Distance)
-const euclideanDistance = (arr1, arr2) => {
-    return Math.sqrt(arr1.reduce((acc, val, i) => acc + Math.pow(val - arr2[i], 2), 0));
-};
 
 // Hàm tính khoảng cách GPS (Haversine formula)
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
@@ -151,9 +147,15 @@ router.post('/testRegister', async (req, res) => {
         const checkResult = await pool.query(checkQuery, [userId]);
 
         for (const row of checkResult.rows) {
-            const savedEmbeddings = typeof row.du_lieu_khuon_mat === 'string'
-                ? JSON.parse(row.du_lieu_khuon_mat)
-                : row.du_lieu_khuon_mat;
+            let savedEmbeddings;
+            try {
+                savedEmbeddings = typeof row.du_lieu_khuon_mat === 'string'
+                    ? JSON.parse(row.du_lieu_khuon_mat)
+                    : row.du_lieu_khuon_mat;
+            } catch (error) {
+                console.log(`[CẢNH BÁO] Dữ liệu khuôn mặt của ${row.id_nhan_vien} không hợp lệ, bỏ qua.`);
+                continue;
+            }
 
             if (Array.isArray(savedEmbeddings)) {
                 for (const newEmb of embeddings) {
@@ -237,9 +239,15 @@ router.post('/checkAttendance', async (req, res) => {
         }
 
         // Parse cẩn thận dữ liệu từ DB
-        const savedEmbeddings = typeof user.du_lieu_khuon_mat === 'string'
-            ? JSON.parse(user.du_lieu_khuon_mat)
-            : user.du_lieu_khuon_mat;
+        let savedEmbeddings;
+        try {
+            savedEmbeddings = typeof user.du_lieu_khuon_mat === 'string'
+                ? JSON.parse(user.du_lieu_khuon_mat)
+                : user.du_lieu_khuon_mat;
+        } catch (error) {
+            console.error(`[LỖI] Dữ liệu khuôn mặt của ${user.id_nhan_vien} không hợp lệ.`);
+            return res.status(400).json({ success: false, message: "Dữ liệu khuôn mặt trong hệ thống bị lỗi." });
+        }
 
         // 2. Gửi ảnh điểm danh sang Python
         console.log(`Đang gửi ảnh điểm danh sang Python...`);
@@ -292,7 +300,7 @@ router.post('/checkAttendance', async (req, res) => {
                     JOIN PHONG_BAN pb ON nv.id_phong_ban = pb.id_phong_ban
                     WHERE nv.id_nhan_vien = $1
                 `, [user.id_nhan_vien]);
-                
+
                 if (shiftRes.rowCount > 0 && shiftRes.rows[0].id_ca_lam_viec) {
                     idCaLam = shiftRes.rows[0].id_ca_lam_viec;
                 } else {
@@ -320,7 +328,7 @@ router.post('/checkAttendance', async (req, res) => {
 
                 const dVao = new Date(shiftDetails.gio_vao);
                 const vaoMinutes = dVao.getHours() * 60 + dVao.getMinutes();
-                
+
                 const dRa = new Date(shiftDetails.gio_ra);
                 let raMinutes = dRa.getHours() * 60 + dRa.getMinutes();
                 if (raMinutes < vaoMinutes) raMinutes += 1440;
@@ -355,7 +363,7 @@ router.post('/checkAttendance', async (req, res) => {
                     // Đã check-in rồi → cập nhật gio_ra (check-out)
                     const dbNote = existingRecord.rows[0].ghi_chu || '';
                     const isOtRecord = dbNote.toLowerCase().includes('tăng ca') || dbNote.toLowerCase().includes('ot') || isOvertime === true || isOvertime === 'true';
-                    
+
                     let checkOutNote = `Check-out qua AI (Python)${additionalNote}`;
                     if (isOtRecord) {
                         checkOutNote = `Tăng ca - Check-out qua AI (Python)${additionalNote}`;
@@ -425,7 +433,7 @@ router.post('/checkAttendance', async (req, res) => {
                         const empName = user.full_name || "Nhân viên";
 
                         for (const hr of hrResult.rows) {
-                            await createNotificationHelper(
+                            await taoThongBaoHelper(
                                 hr.id_nhan_vien,
                                 "Giải trình đi trễ mới 📝",
                                 `${empName} vừa gửi giải trình đi trễ: "${lateReason}"`,

@@ -56,3 +56,59 @@ export const layDanhSachVaiTro = async (req, res) => {
         res.status(500).json({ success: false, message: 'Lỗi server.' });
     }
 };
+
+export const capNhatVaiTro = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { ten_vai_tro, mo_ta } = req.body;
+        
+        if (!ten_vai_tro) {
+            return res.status(400).json({ success: false, message: 'Tên vai trò là bắt buộc.' });
+        }
+
+        const result = await pool.query(
+            'UPDATE VAI_TRO SET ten_vai_tro = $1, mo_ta = $2 WHERE id_vai_tro = $3 RETURNING *',
+            [ten_vai_tro, mo_ta, id]
+        );
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy vai trò.' });
+        }
+
+        res.status(200).json({ success: true, data: result.rows[0], message: 'Cập nhật thành công.' });
+    } catch (error) {
+        console.error('Lỗi khi cập nhật vai trò:', error.message);
+        res.status(500).json({ success: false, message: 'Lỗi server.' });
+    }
+};
+
+export const xoaVaiTro = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Các vai trò hệ thống mặc định không cho phép xoá
+        const systemRoles = ['VT001', 'VT002', 'VT003']; 
+        if (systemRoles.includes(id)) {
+            return res.status(400).json({ success: false, message: 'Không thể xóa các vai trò hệ thống mặc định.' });
+        }
+
+        // Kiểm tra xem vai trò có tài khoản nào đang sử dụng không
+        const checkQuery = await pool.query('SELECT COUNT(*) FROM TAI_KHOAN WHERE id_vai_tro = $1', [id]);
+        const count = parseInt(checkQuery.rows[0].count);
+
+        if (count > 0) {
+            return res.status(400).json({ success: false, message: 'Không thể xóa vai trò đang có tài khoản sử dụng.' });
+        }
+
+        const result = await pool.query('DELETE FROM VAI_TRO WHERE id_vai_tro = $1 RETURNING *', [id]);
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy vai trò.' });
+        }
+
+        res.status(200).json({ success: true, message: 'Xóa vai trò thành công.' });
+    } catch (error) {
+        console.error('Lỗi khi xóa vai trò:', error.message);
+        res.status(500).json({ success: false, message: 'Lỗi server.' });
+    }
+};
