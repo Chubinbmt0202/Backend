@@ -111,11 +111,11 @@ export const dangNhap = async (req, res) => {
         const idThietBi = 'TB' + Date.now().toString().slice(-8) + Math.floor(Math.random() * 100);
         
         await pool.query(
-          `INSERT INTO THIET_BI_DANG_NHAP (id_thiet_bi, id_tai_khoan, ten_thiet_bi, he_dieu_hanh, dia_chi_ip) 
-           VALUES ($1, $2, $3, $4, $5)`,
-          [idThietBi, user.id_tai_khoan, device_info.model_name, `${device_info.os_name} ${device_info.os_version}`, ipAddress]
+          `INSERT INTO THIET_BI_DANG_NHAP (id_thiet_bi, id_tai_khoan, ten_thiet_bi, he_dieu_hanh, dia_chi_ip, dia_chi_wifi) 
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [idThietBi, user.id_tai_khoan, device_info.model_name, `${device_info.os_name} ${device_info.os_version}`, ipAddress, wifi_bssid || null]
         );
-        console.log(`[DEVICE LOG] Lưu thông tin thiết bị thành công cho tài khoản ${user.ten_dang_nhap}: ${device_info.model_name}`);
+        console.log(`[DEVICE LOG] Lưu thông tin thiết bị thành công cho tài khoản ${user.ten_dang_nhap}: ${device_info.model_name} | WiFi: ${wifi_bssid || "N/A"}`);
       } catch (err) {
         console.error("[DEVICE LOG ERROR] Không thể lưu thông tin thiết bị:", err.message);
       }

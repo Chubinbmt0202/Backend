@@ -288,13 +288,30 @@ export const layNhanVienTheoID = async (req, res) => {
 
         const attendance = await pool.query(attendanceQuery, [id]);
 
+        // Lấy danh sách thiết bị đăng nhập của nhân viên
+        const devicesQuery = `
+            SELECT
+                id_thiet_bi,
+                ten_thiet_bi,
+                he_dieu_hanh,
+                dia_chi_ip,
+                dia_chi_wifi,
+                thoi_gian_dang_nhap
+            FROM THIET_BI_DANG_NHAP
+            WHERE id_tai_khoan = $1
+            ORDER BY thoi_gian_dang_nhap DESC
+            LIMIT 10
+        `;
+        const devices = await pool.query(devicesQuery, [employee.rows[0].id_tai_khoan]);
+
         // Trả về dữ liệu thành công
         res.status(200).json({
             success: true,
             message: 'Lấy thông tin nhân viên thành công',
             data: {
                 ...employee.rows[0],
-                attendance_history: attendance.rows
+                attendance_history: attendance.rows,
+                login_devices: devices.rows
             }
         });
 

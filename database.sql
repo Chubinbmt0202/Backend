@@ -184,6 +184,7 @@ CREATE TABLE THIET_BI_DANG_NHAP (
     ten_thiet_bi VARCHAR(255),
     he_dieu_hanh VARCHAR(255),
     dia_chi_ip VARCHAR(50),
+    dia_chi_wifi VARCHAR(255),
     thoi_gian_dang_nhap TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
