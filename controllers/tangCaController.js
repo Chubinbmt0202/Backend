@@ -231,3 +231,84 @@ export const layDonTangCaNhanVien = async (req, res) => {
         });
     }
 };
+
+export const layCauHinhTangCa = async (req, res) => {
+    try {
+        const query = `SELECT * FROM CAU_HINH_TANG_CA LIMIT 1`;
+        const result = await pool.query(query);
+        
+        if (result.rowCount === 0) {
+            const seedQuery = `
+                INSERT INTO CAU_HINH_TANG_CA (id_cau_hinh, thoi_gian_check_in_truoc, thoi_gian_ot_toi_thieu)
+                VALUES ('OTCF001', 30, 30)
+                RETURNING *;
+            `;
+            const seedResult = await pool.query(seedQuery);
+            return res.status(200).json({
+                success: true,
+                data: seedResult.rows[0]
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: result.rows[0]
+        });
+    } catch (error) {
+        console.error('Lỗi khi lấy cấu hình tăng ca:', error.message);
+        res.status(500).json({
+            success: false,
+            message: 'Lỗi server khi lấy cấu hình tăng ca.'
+        });
+    }
+};
+
+export const capNhatCauHinhTangCa = async (req, res) => {
+    try {
+        const { thoi_gian_check_in_truoc, thoi_gian_ot_toi_thieu } = req.body;
+
+        if (thoi_gian_check_in_truoc === undefined || thoi_gian_ot_toi_thieu === undefined) {
+            return res.status(400).json({
+                success: false,
+                message: 'Vui lòng điền đầy đủ thông tin cấu hình.'
+            });
+        }
+
+        const checkQuery = `SELECT id_cau_hinh FROM CAU_HINH_TANG_CA LIMIT 1`;
+        const checkResult = await pool.query(checkQuery);
+
+        let query;
+        let params;
+        if (checkResult.rowCount === 0) {
+            query = `
+                INSERT INTO CAU_HINH_TANG_CA (id_cau_hinh, thoi_gian_check_in_truoc, thoi_gian_ot_toi_thieu)
+                VALUES ('OTCF001', $1, $2)
+                RETURNING *;
+            `;
+            params = [thoi_gian_check_in_truoc, thoi_gian_ot_toi_thieu];
+        } else {
+            query = `
+                UPDATE CAU_HINH_TANG_CA 
+                SET thoi_gian_check_in_truoc = $1, thoi_gian_ot_toi_thieu = $2, ngay_cap_nhat = CURRENT_TIMESTAMP
+                WHERE id_cau_hinh = $3
+                RETURNING *;
+            `;
+            params = [thoi_gian_check_in_truoc, thoi_gian_ot_toi_thieu, checkResult.rows[0].id_cau_hinh];
+        }
+
+        const result = await pool.query(query, params);
+
+        res.status(200).json({
+            success: true,
+            message: 'Cập nhật cấu hình tăng ca thành công.',
+            data: result.rows[0]
+        });
+    } catch (error) {
+        console.error('Lỗi khi cập nhật cấu hình tăng ca:', error.message);
+        res.status(500).json({
+            success: false,
+            message: 'Lỗi server khi cập nhật cấu hình tăng ca.'
+        });
+    }
+};
+

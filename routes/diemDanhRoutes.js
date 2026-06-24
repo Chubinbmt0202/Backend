@@ -386,6 +386,47 @@ router.post('/checkAttendance', async (req, res) => {
                     return res.status(400).json({ success: false, message: 'Bạn đã chấm công vào rồi, vui lòng chấm công ra.' });
                 }
 
+                if (isOvertime === true || isOvertime === 'true') {
+                    let configMins = 30; // default
+                    try {
+                        const configRes = await pool.query(`SELECT thoi_gian_check_in_truoc FROM CAU_HINH_TANG_CA LIMIT 1`);
+                        if (configRes.rowCount > 0) {
+                            configMins = parseInt(configRes.rows[0].thoi_gian_check_in_truoc);
+                        }
+                    } catch (configErr) {
+                        console.error("Error reading overtime config:", configErr.message);
+                    }
+
+                    const todayStr = new Date().toLocaleDateString('en-CA');
+                    const otReqRes = await pool.query(
+                        `SELECT gio_bat_dau FROM DON_DANG_KY_OT 
+                         WHERE id_nhan_vien = $1 AND ngay_dang_ky_ot = $2 AND trang_thai = 'DA_DUYET'
+                         LIMIT 1`,
+                        [user.id_nhan_vien, todayStr]
+                    );
+
+                    if (otReqRes.rowCount === 0) {
+                        return res.status(400).json({
+                            success: false,
+                            message: 'Bạn không có đơn đăng ký tăng ca nào được phê duyệt trong ngày hôm nay.'
+                        });
+                    }
+
+                    const otStartTimeStr = otReqRes.rows[0].gio_bat_dau;
+                    const [otH, otM] = otStartTimeStr.split(':').map(Number);
+                    
+                    const now = new Date();
+                    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+                    const otStartMinutes = otH * 60 + otM;
+
+                    if (currentMinutes < (otStartMinutes - configMins)) {
+                        return res.status(400).json({
+                            success: false,
+                            message: `Chưa đến giờ chấm công tăng ca! (Chỉ được check-in trước giờ bắt đầu ${configMins} phút)`
+                        });
+                    }
+                }
+
                 // Bỏ qua đoạn lấy id_ca_lam vì đã lấy ở trên
 
                 // Chưa check-in → tạo bản ghi mới

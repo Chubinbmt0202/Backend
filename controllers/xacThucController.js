@@ -24,14 +24,12 @@ export const dangNhap = async (req, res) => {
       const wifiResult = await pool.query("SELECT dia_chi_wifi FROM WIFI");
       const validBssids = wifiResult.rows.map(row => row.dia_chi_wifi?.toLowerCase());
 
-      /*
       if (!wifi_bssid || !validBssids.includes(wifi_bssid.toLowerCase())) {
         return res.status(403).json({
           success: false,
           message: "Bạn phải sử dụng WiFi công ty để đăng nhập trên ứng dụng mobile.",
         });
       }
-      */
     } else {
       console.log("[CHECK] Web/Admin request detected, skipping WiFi validation.");
     }
