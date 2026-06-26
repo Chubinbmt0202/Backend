@@ -238,6 +238,25 @@ router.post('/checkAttendance', async (req, res) => {
             return res.status(400).json({ success: false, message: "User chưa đăng ký khuôn mặt." });
         }
 
+        // Kiểm tra xem nhân viên có đơn xin nghỉ đã được duyệt trong ngày hôm nay không
+        const leaveQuery = `
+            SELECT id_don_xin_nghi 
+            FROM DON_XIN_NGHI 
+            WHERE id_nguoi_dung = $1 
+              AND trang_thai = true 
+              AND ngay_bat_dau <= CURRENT_DATE 
+              AND ngay_ket_thuc >= CURRENT_DATE
+            LIMIT 1
+        `;
+        const leaveResult = await pool.query(leaveQuery, [user.id_nhan_vien]);
+
+        if (leaveResult.rowCount > 0) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Bạn có đơn xin nghỉ phép đã được duyệt vào hôm nay nên không thể chấm công." 
+            });
+        }
+
         // Parse cẩn thận dữ liệu từ DB
         let savedEmbeddings;
         try {
