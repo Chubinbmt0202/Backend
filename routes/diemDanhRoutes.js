@@ -7,7 +7,8 @@ import {
     layDanhSachGiaiTrinhDiMuon,
     layGiaiTrinhDiMuonCuaNhanVien,
     capNhatTrangThaiGiaiTrinh,
-    layXuHuongDiemDanh
+    layXuHuongDiemDanh,
+    layThongKeDashboard
 } from '../controllers/diemDanhController.js';
 
 import pool from '../config/db.js';
@@ -79,6 +80,9 @@ router.get('/list/daily', layTatCaDiemDanh);
 
 // GET /api/attendance/summary/trend - Lấy thống kê xu hướng chấm công (7 ngày hoặc 30 ngày)
 router.get('/summary/trend', layXuHuongDiemDanh);
+
+// GET /api/attendance/summary/dashboard-stats - Lấy thống kê dashboard theo filter
+router.get('/summary/dashboard-stats', layThongKeDashboard);
 
 // GET /api/attendance/history/:userId - Lấy lịch sử chấm công của 1 NV
 router.get('/history/:userId', layLichSuDiemDanhNhanVien);
@@ -206,16 +210,30 @@ router.post('/testRegister', async (req, res) => {
 // =========================================================================
 router.post('/checkAttendance', async (req, res) => {
     try {
-        const { userId, url, evidence, action, isOvertime } = req.body;
+        const { userId, url, evidence, action, isOvertime, wifi_bssid } = req.body;
         console.log("req.body", req.body);
         if (!userId || !url) {
             return res.status(400).json({ success: false, message: 'Thiếu userId hoặc url ảnh.' });
         }
 
         // ==========================================
-        // 0. KIỂM TRA VỊ TRÍ CHẤM CÔNG (WIFI / GPS) - ĐÃ ĐƯỢC LƯỢC BỎ THEO YÊU CẦU
+        // 0. KIỂM TRA VỊ TRÍ CHẤM CÔNG (WIFI)
         // ==========================================
         let locationNote = 'Không kiểm tra vị trí';
+        
+        // Kiểm tra WiFi công ty
+        console.log(`[CHECK ATTENDANCE] BSSID received: ${wifi_bssid}`);
+        const wifiResult = await pool.query("SELECT dia_chi_wifi FROM WIFI");
+        const validBssids = wifiResult.rows.map(row => row.dia_chi_wifi?.toLowerCase());
+
+        if (!wifi_bssid || !validBssids.includes(wifi_bssid.toLowerCase())) {
+            return res.status(403).json({
+                success: false,
+                message: "Bạn phải sử dụng WiFi công ty để chấm công."
+            });
+        }
+        locationNote = `WiFi hợp lệ (${wifi_bssid})`;
+
 
         // 1. Lấy 3 khuôn mặt gốc từ DB
         const userQuery = `

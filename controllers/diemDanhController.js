@@ -684,13 +684,14 @@ export const layXuHuongDiemDanh = async (req, res) => {
         const lateByDeptQuery = `
             SELECT 
                 pb.ten_phong_ban,
-                COUNT(cc.id_cham_cong) AS late_count
-            FROM CHAM_CONG cc
-            JOIN NHAN_VIEN nv ON cc.id_nhan_vien = nv.id_nhan_vien
-            JOIN PHONG_BAN pb ON nv.id_phong_ban = pb.id_phong_ban
-            WHERE cc.gio_vao >= CURRENT_DATE - ($1 || ' days')::interval
-              AND (EXTRACT(HOUR FROM cc.gio_vao) * 60 + EXTRACT(MINUTE FROM cc.gio_vao) > 8 * 60)
+                COALESCE(SUM(CASE WHEN EXTRACT(HOUR FROM cc.gio_vao) * 60 + EXTRACT(MINUTE FROM cc.gio_vao) > 8 * 60 THEN 1 ELSE 0 END), 0) AS late_count,
+                COALESCE(SUM(CASE WHEN EXTRACT(HOUR FROM cc.gio_vao) * 60 + EXTRACT(MINUTE FROM cc.gio_vao) <= 8 * 60 THEN 1 ELSE 0 END), 0) AS on_time_count
+            FROM PHONG_BAN pb
+            LEFT JOIN NHAN_VIEN nv ON pb.id_phong_ban = nv.id_phong_ban
+            LEFT JOIN CHAM_CONG cc ON nv.id_nhan_vien = cc.id_nhan_vien 
+                AND cc.gio_vao >= CURRENT_DATE - ($1 || ' days')::interval
             GROUP BY pb.ten_phong_ban
+            ORDER BY pb.ten_phong_ban
         `;
 
         const lateByDeptResult = await pool.query(lateByDeptQuery, [days]);
@@ -708,5 +709,53 @@ export const layXuHuongDiemDanh = async (req, res) => {
             success: false,
             message: 'Lỗi server khi lấy thống kê chấm công.'
         });
+    }
+};
+
+/**
+ * Lấy thống kê tổng quan (Hôm nay, tuần, tháng, năm) cho Dashboard
+ */
+export const layThongKeDashboard = async (req, res) => {
+    try {
+        const { timeFilter = 'today' } = req.query;
+        let dateCondition = 'gio_vao >= CURRENT_DATE';
+        
+        let otCondition = 'ngay_dang_ky_ot >= CURRENT_DATE';
+        
+        if (timeFilter === 'week') {
+            dateCondition = "gio_vao >= date_trunc('week', CURRENT_DATE)";
+            otCondition = "ngay_dang_ky_ot >= date_trunc('week', CURRENT_DATE)";
+        } else if (timeFilter === 'month') {
+            dateCondition = "gio_vao >= date_trunc('month', CURRENT_DATE)";
+            otCondition = "ngay_dang_ky_ot >= date_trunc('month', CURRENT_DATE)";
+        } else if (timeFilter === 'year') {
+            dateCondition = "gio_vao >= date_trunc('year', CURRENT_DATE)";
+            otCondition = "ngay_dang_ky_ot >= date_trunc('year', CURRENT_DATE)";
+        }
+
+        const presentQuery = `SELECT COUNT(*) as present_count FROM CHAM_CONG WHERE ${dateCondition} AND gio_vao IS NOT NULL`;
+        const lateQuery = `SELECT COUNT(*) as late_count FROM CHAM_CONG WHERE ${dateCondition} AND (EXTRACT(HOUR FROM gio_vao) * 60 + EXTRACT(MINUTE FROM gio_vao) > 8 * 60)`;
+        const forgotQuery = `SELECT COUNT(*) as forgot_count FROM CHAM_CONG WHERE ${dateCondition} AND gio_ra IS NULL AND (EXTRACT(HOUR FROM CURRENT_TIMESTAMP) > 20)`;
+        const otQuery = `SELECT COUNT(*) as ot_count FROM DON_DANG_KY_OT WHERE ${otCondition} AND trang_thai = 'DA_DUYET'`;
+        
+        const [presentRes, lateRes, forgotRes, otRes] = await Promise.all([
+            pool.query(presentQuery),
+            pool.query(lateQuery),
+            pool.query(forgotQuery),
+            pool.query(otQuery)
+        ]);
+
+        res.status(200).json({
+            success: true,
+            data: {
+                presentCount: parseInt(presentRes.rows[0].present_count),
+                lateCount: parseInt(lateRes.rows[0].late_count),
+                forgotCheckInOutCount: parseInt(forgotRes.rows[0].forgot_count),
+                otCount: parseInt(otRes.rows[0].ot_count)
+            }
+        });
+    } catch (error) {
+        console.error('Lỗi khi lấy thống kê dashboard:', error.message);
+        res.status(500).json({ success: false, message: 'Lỗi server' });
     }
 };

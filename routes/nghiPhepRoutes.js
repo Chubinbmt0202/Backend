@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { taoYeuCauNghiPhep, layDonNghiPhepNhanVien, layTatCaDonNghiPhep, capNhatTrangThaiNghiPhep, layTatCaLoaiNghiPhep, capNhatLoaiNghiPhep } from '../controllers/nghiPhepController.js';
+import { taoYeuCauNghiPhep, layDonNghiPhepNhanVien, layTatCaDonNghiPhep, capNhatTrangThaiNghiPhep, layTatCaLoaiNghiPhep, capNhatLoaiNghiPhep, layThongKeNghiPhepNhanVien } from '../controllers/nghiPhepController.js';
 
 
 const router = express.Router();
@@ -29,5 +29,8 @@ router.get('/types', layTatCaLoaiNghiPhep);
 
 // PUT /api/leave/types/:id
 router.put('/types/:id', capNhatLoaiNghiPhep);
+
+// GET /api/leave/summary/:employeeId
+router.get('/summary/:employeeId', layThongKeNghiPhepNhanVien);
 
 export default router;

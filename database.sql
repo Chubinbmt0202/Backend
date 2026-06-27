@@ -89,6 +89,7 @@ CREATE TABLE LOAI_PHEP (
     id_loai_phep VARCHAR(8) PRIMARY KEY,
     ten_phep VARCHAR(255),
     so_ngay_toi_da NUMERIC,
+    so_ngay_toi_da_1_thang NUMERIC,
     co_luong BOOLEAN,
     mo_ta VARCHAR(255) 
 );

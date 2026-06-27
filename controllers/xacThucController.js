@@ -14,26 +14,15 @@ export const dangNhap = async (req, res) => {
       });
     }
 
-    // 1. Kiểm tra WiFi công ty (Chỉ bắt buộc trên Mobile)
+    // 1. (Đã gỡ bỏ kiểm tra WiFi công ty khi đăng nhập theo yêu cầu)
     const userAgent = req.headers['user-agent'] || '';
     const isMobile = /mobile|android|iphone|ipad|expo|okhttp/i.test(userAgent);
 
     if (isMobile) {
-      console.log("[CHECK] Mobile request detected, enforcing WiFi validation...");
-      // Lấy tất cả BSSID hợp lệ từ bảng WIFI
-      const wifiResult = await pool.query("SELECT dia_chi_wifi FROM WIFI");
-      const validBssids = wifiResult.rows.map(row => row.dia_chi_wifi?.toLowerCase());
-
-      if (!wifi_bssid || !validBssids.includes(wifi_bssid.toLowerCase())) {
-        return res.status(403).json({
-          success: false,
-          message: "Bạn phải sử dụng WiFi công ty để đăng nhập trên ứng dụng mobile.",
-        });
-      }
+      console.log("[CHECK] Mobile request detected, login allowed on any WiFi...");
     } else {
-      console.log("[CHECK] Web/Admin request detected, skipping WiFi validation.");
+      console.log("[CHECK] Web/Admin request detected, login allowed.");
     }
-
 
     // 2. Tìm người dùng
     const userResult = await pool.query(

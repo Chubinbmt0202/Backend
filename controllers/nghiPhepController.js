@@ -91,47 +91,44 @@ export const taoYeuCauNghiPhep = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Ngày bắt đầu và kết thúc không hợp lệ.' });
         }
 
-        const typeLimitQuery = await pool.query('SELECT so_ngay_toi_da FROM LOAI_PHEP WHERE id_loai_phep = $1', [id_loai_phep]);
+        const typeLimitQuery = await pool.query('SELECT so_ngay_toi_da, so_ngay_toi_da_1_thang FROM LOAI_PHEP WHERE id_loai_phep = $1', [id_loai_phep]);
         const maxDays = typeLimitQuery.rows[0]?.so_ngay_toi_da || 0;
+        const maxDaysMonth = typeLimitQuery.rows[0]?.so_ngay_toi_da_1_thang || 0;
 
-        if (id_loai_phep === 'LP001') {
-            // Phép hàng tháng: 1 day per month max
-            const currentMonth = startDate.getMonth() + 1;
-            const currentYear = startDate.getFullYear();
+        const currentMonth = startDate.getMonth() + 1;
+        const currentYear = startDate.getFullYear();
 
-            const checkQuery = `
-                SELECT SUM(ngay_ket_thuc - ngay_bat_dau + 1) as used_days
-                FROM DON_XIN_NGHI
-                WHERE id_nguoi_dung = $1
-                  AND id_loai_phep = $2
-                  AND trang_thai = true
-                  AND EXTRACT(MONTH FROM ngay_bat_dau) = $3
-                  AND EXTRACT(YEAR FROM ngay_bat_dau) = $4
-            `;
-            const usedDaysRes = await pool.query(checkQuery, [id_nhan_vien, id_loai_phep, currentMonth, currentYear]);
-            const usedDays = parseInt(usedDaysRes.rows[0].used_days || '0', 10);
-            
-            if (usedDays + requestedDays > 1) {
-                return res.status(400).json({ success: false, message: 'Phép hàng tháng chỉ được nghỉ 1 ngày/tháng và bạn đã sử dụng hoặc đăng ký vượt quá hạn mức.' });
-            }
-        } else {
-            // Các loại phép khác: check yearly limit
-            const currentYear = startDate.getFullYear();
-            
-            const checkQuery = `
-                SELECT SUM(ngay_ket_thuc - ngay_bat_dau + 1) as used_days
-                FROM DON_XIN_NGHI
-                WHERE id_nguoi_dung = $1
-                  AND id_loai_phep = $2
-                  AND trang_thai = true
-                  AND EXTRACT(YEAR FROM ngay_bat_dau) = $3
-            `;
-            const usedDaysRes = await pool.query(checkQuery, [id_nhan_vien, id_loai_phep, currentYear]);
-            const usedDays = parseInt(usedDaysRes.rows[0].used_days || '0', 10);
+        // 1. Check monthly limit
+        const checkMonthQuery = `
+            SELECT SUM(ngay_ket_thuc - ngay_bat_dau + 1) as used_days
+            FROM DON_XIN_NGHI
+            WHERE id_nguoi_dung = $1
+              AND id_loai_phep = $2
+              AND (trang_thai = true OR trang_thai IS NULL)
+              AND EXTRACT(MONTH FROM ngay_bat_dau) = $3
+              AND EXTRACT(YEAR FROM ngay_bat_dau) = $4
+        `;
+        const monthRes = await pool.query(checkMonthQuery, [id_nhan_vien, id_loai_phep, currentMonth, currentYear]);
+        const usedDaysMonth = parseInt(monthRes.rows[0].used_days || '0', 10);
+        
+        if (maxDaysMonth > 0 && (usedDaysMonth + requestedDays > maxDaysMonth)) {
+            return res.status(400).json({ success: false, message: `Loại phép này chỉ được nghỉ tối đa ${maxDaysMonth} ngày/tháng. Bạn đã dùng hoặc đăng ký ${usedDaysMonth} ngày trong tháng này, không thể xin thêm ${requestedDays} ngày.` });
+        }
 
-            if (usedDays + requestedDays > maxDays) {
-                return res.status(400).json({ success: false, message: `Loại phép này chỉ được nghỉ tối đa ${maxDays} ngày/năm. Bạn đã dùng ${usedDays} ngày và đang xin thêm ${requestedDays} ngày.` });
-            }
+        // 2. Check yearly limit
+        const checkYearQuery = `
+            SELECT SUM(ngay_ket_thuc - ngay_bat_dau + 1) as used_days
+            FROM DON_XIN_NGHI
+            WHERE id_nguoi_dung = $1
+              AND id_loai_phep = $2
+              AND (trang_thai = true OR trang_thai IS NULL)
+              AND EXTRACT(YEAR FROM ngay_bat_dau) = $3
+        `;
+        const yearRes = await pool.query(checkYearQuery, [id_nhan_vien, id_loai_phep, currentYear]);
+        const usedDaysYear = parseInt(yearRes.rows[0].used_days || '0', 10);
+
+        if (maxDays > 0 && (usedDaysYear + requestedDays > maxDays)) {
+            return res.status(400).json({ success: false, message: `Loại phép này chỉ được nghỉ tối đa ${maxDays} ngày/năm. Bạn đã dùng ${usedDaysYear} ngày và đang xin thêm ${requestedDays} ngày.` });
         }
 
         // 5. Generate ID and Insert
@@ -370,7 +367,7 @@ export const layTatCaLoaiNghiPhep = async (req, res) => {
 export const capNhatLoaiNghiPhep = async (req, res) => {
     try {
         const { id } = req.params;
-        const { ten_phep, so_ngay_toi_da, co_luong, mo_ta } = req.body;
+        const { ten_phep, so_ngay_toi_da, so_ngay_toi_da_1_thang, co_luong, mo_ta } = req.body;
 
         if (!id || !ten_phep || so_ngay_toi_da === undefined) {
             return res.status(400).json({
@@ -381,11 +378,11 @@ export const capNhatLoaiNghiPhep = async (req, res) => {
 
         const query = `
             UPDATE LOAI_PHEP
-            SET ten_phep = $1, so_ngay_toi_da = $2, co_luong = $3, mo_ta = $4
-            WHERE id_loai_phep = $5
+            SET ten_phep = $1, so_ngay_toi_da = $2, so_ngay_toi_da_1_thang = $3, co_luong = $4, mo_ta = $5
+            WHERE id_loai_phep = $6
             RETURNING *;
         `;
-        const values = [ten_phep, so_ngay_toi_da, co_luong || false, mo_ta || '', id];
+        const values = [ten_phep, so_ngay_toi_da, so_ngay_toi_da_1_thang || 0, co_luong || false, mo_ta || '', id];
         
         const result = await pool.query(query, values);
 
@@ -407,6 +404,84 @@ export const capNhatLoaiNghiPhep = async (req, res) => {
             success: false,
             message: 'Lỗi server khi cập nhật loại phép.'
         });
+    }
+};
+
+export const layThongKeNghiPhepNhanVien = async (req, res) => {
+    try {
+        const { employeeId } = req.params;
+        if (!employeeId) {
+            return res.status(400).json({ success: false, message: 'Thiếu employeeId' });
+        }
+
+        const currentMonth = new Date().getMonth() + 1;
+        const currentYear = new Date().getFullYear();
+
+        // 1. Get all leave types
+        const typesQuery = `SELECT * FROM LOAI_PHEP ORDER BY id_loai_phep ASC`;
+        const typesResult = await pool.query(typesQuery);
+        const leaveTypes = typesResult.rows;
+
+        // 2. Get used days per type for current month
+        const monthQuery = `
+            SELECT id_loai_phep, SUM(ngay_ket_thuc - ngay_bat_dau + 1) as used_days_month
+            FROM DON_XIN_NGHI
+            WHERE id_nguoi_dung = $1
+              AND (trang_thai = true OR trang_thai IS NULL)
+              AND EXTRACT(MONTH FROM ngay_bat_dau) = $2
+              AND EXTRACT(YEAR FROM ngay_bat_dau) = $3
+            GROUP BY id_loai_phep
+        `;
+        const monthResult = await pool.query(monthQuery, [employeeId, currentMonth, currentYear]);
+        const usedMonthMap = {};
+        monthResult.rows.forEach(row => {
+            usedMonthMap[row.id_loai_phep] = parseInt(row.used_days_month || '0', 10);
+        });
+
+        // 3. Get used days per type for current year
+        const yearQuery = `
+            SELECT id_loai_phep, SUM(ngay_ket_thuc - ngay_bat_dau + 1) as used_days_year
+            FROM DON_XIN_NGHI
+            WHERE id_nguoi_dung = $1
+              AND (trang_thai = true OR trang_thai IS NULL)
+              AND EXTRACT(YEAR FROM ngay_bat_dau) = $2
+            GROUP BY id_loai_phep
+        `;
+        const yearResult = await pool.query(yearQuery, [employeeId, currentYear]);
+        const usedYearMap = {};
+        yearResult.rows.forEach(row => {
+            usedYearMap[row.id_loai_phep] = parseInt(row.used_days_year || '0', 10);
+        });
+
+        // 4. Combine data
+        const summary = leaveTypes.map(type => {
+            const maxMonth = parseFloat(type.so_ngay_toi_da_1_thang || 0);
+            const maxYear = parseFloat(type.so_ngay_toi_da || 0);
+            const usedMonth = usedMonthMap[type.id_loai_phep] || 0;
+            const usedYear = usedYearMap[type.id_loai_phep] || 0;
+            
+            return {
+                id_loai_phep: type.id_loai_phep,
+                ten_phep: type.ten_phep,
+                co_luong: type.co_luong,
+                mo_ta: type.mo_ta,
+                max_month: maxMonth,
+                max_year: maxYear,
+                used_month: usedMonth,
+                used_year: usedYear,
+                remaining_month: maxMonth > 0 ? Math.max(0, maxMonth - usedMonth) : null,
+                remaining_year: maxYear > 0 ? Math.max(0, maxYear - usedYear) : null
+            };
+        });
+
+        res.status(200).json({
+            success: true,
+            data: summary
+        });
+
+    } catch (error) {
+        console.error('Lỗi khi lấy thống kê nghỉ phép:', error.message);
+        res.status(500).json({ success: false, message: 'Lỗi server khi thống kê nghỉ phép.' });
     }
 };
 
