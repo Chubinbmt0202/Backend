@@ -404,6 +404,27 @@ router.post('/checkAttendance', async (req, res) => {
                     let checkOutNote = `Check-out qua AI (Python)${additionalNote}`;
                     if (isOtRecord) {
                         checkOutNote = `Tăng ca - Check-out qua AI (Python)${additionalNote}`;
+                        
+                        let minOtDuration = 30; // default 30 mins
+                        try {
+                            const configRes = await pool.query(`SELECT thoi_gian_ot_toi_thieu FROM CAU_HINH_TANG_CA LIMIT 1`);
+                            if (configRes.rowCount > 0) {
+                                minOtDuration = parseInt(configRes.rows[0].thoi_gian_ot_toi_thieu) || 30;
+                            }
+                        } catch (configErr) {
+                            console.error("Error reading overtime config for check-out:", configErr.message);
+                        }
+
+                        const checkInTime = new Date(existingRecord.rows[0].gio_vao);
+                        const now = new Date();
+                        const diffMins = Math.floor((now.getTime() - checkInTime.getTime()) / 60000);
+
+                        if (diffMins < minOtDuration) {
+                            return res.status(400).json({
+                                success: false,
+                                message: `Bạn chưa làm đủ thời gian tăng ca tối thiểu (${minOtDuration} phút). Hiện tại mới được ${diffMins} phút.`
+                            });
+                        }
                     }
 
                     const updateResult = await pool.query(

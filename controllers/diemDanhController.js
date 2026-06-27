@@ -81,9 +81,11 @@ export const layTatCaDiemDanh = async (req, res) => {
             SELECT 
                 nv.id_nhan_vien AS employee_id,
                 nv.ho_va_ten AS full_name,
-                tk.ten_dang_nhap AS username
+                tk.ten_dang_nhap AS username,
+                pb.ten_phong_ban
             FROM NHAN_VIEN nv
             LEFT JOIN TAI_KHOAN tk ON tk.id_tai_khoan = nv.id_tai_khoan
+            LEFT JOIN PHONG_BAN pb ON nv.id_phong_ban = pb.id_phong_ban
             ORDER BY nv.id_nhan_vien ASC
         `;
         const empResult = await pool.query(empQuery);
@@ -210,11 +212,20 @@ export const layTatCaDiemDanh = async (req, res) => {
                 const h = parseInt(parts.find(p => p.type === 'hour').value, 10) % 24;
                 const m = parseInt(parts.find(p => p.type === 'minute').value, 10);
 
-                if (h * 60 + m > 8 * 60) {
-                    status = 'late';
+                let isLate = false;
+                if (emp.ten_phong_ban && emp.ten_phong_ban.toLowerCase().includes('an ninh')) {
+                    if (h >= 17) {
+                        isLate = (h > 17 || m > 0);
+                    } else if (h < 5) {
+                        isLate = true;
+                    } else {
+                        isLate = false;
+                    }
                 } else {
-                    status = 'present';
+                    isLate = h * 60 + m > 8 * 60;
                 }
+
+                status = isLate ? 'late' : 'present';
             }
 
             return {
@@ -334,7 +345,13 @@ export const layLichSuDiemDanhNhanVien = async (req, res) => {
         }
 
         // 1. Fetch employee info to verify existence
-        const empQuery = `SELECT id_nhan_vien FROM NHAN_VIEN WHERE id_nhan_vien = $1 OR id_tai_khoan = $1 LIMIT 1`;
+        const empQuery = `
+            SELECT nv.id_nhan_vien, pb.ten_phong_ban 
+            FROM NHAN_VIEN nv 
+            LEFT JOIN PHONG_BAN pb ON nv.id_phong_ban = pb.id_phong_ban
+            WHERE nv.id_nhan_vien = $1 OR nv.id_tai_khoan = $1 
+            LIMIT 1
+        `;
         const empResult = await pool.query(empQuery, [userId]);
         if (empResult.rowCount === 0) {
             return res.status(404).json({
@@ -343,6 +360,7 @@ export const layLichSuDiemDanhNhanVien = async (req, res) => {
             });
         }
         const empId = empResult.rows[0].id_nhan_vien;
+        const ten_phong_ban = empResult.rows[0].ten_phong_ban;
 
         // 2. Fetch all CHAM_CONG logs for the employee
         const attQuery = `
@@ -491,11 +509,20 @@ export const layLichSuDiemDanhNhanVien = async (req, res) => {
                 const h = parseInt(parts.find(p => p.type === 'hour').value, 10) % 24;
                 const m = parseInt(parts.find(p => p.type === 'minute').value, 10);
 
-                if (h * 60 + m > 8 * 60) {
-                    status = 'late';
+                let isLate = false;
+                if (ten_phong_ban && ten_phong_ban.toLowerCase().includes('an ninh')) {
+                    if (h >= 17) {
+                        isLate = (h > 17 || m > 0);
+                    } else if (h < 5) {
+                        isLate = true;
+                    } else {
+                        isLate = false;
+                    }
                 } else {
-                    status = 'present';
+                    isLate = h * 60 + m > 8 * 60;
                 }
+
+                status = isLate ? 'late' : 'present';
             }
 
             historyList.push({
@@ -684,8 +711,22 @@ export const layXuHuongDiemDanh = async (req, res) => {
         const lateByDeptQuery = `
             SELECT 
                 pb.ten_phong_ban,
-                COALESCE(SUM(CASE WHEN EXTRACT(HOUR FROM cc.gio_vao) * 60 + EXTRACT(MINUTE FROM cc.gio_vao) > 8 * 60 THEN 1 ELSE 0 END), 0) AS late_count,
-                COALESCE(SUM(CASE WHEN EXTRACT(HOUR FROM cc.gio_vao) * 60 + EXTRACT(MINUTE FROM cc.gio_vao) <= 8 * 60 THEN 1 ELSE 0 END), 0) AS on_time_count
+                COALESCE(SUM(
+                    CASE 
+                        WHEN LOWER(pb.ten_phong_ban) LIKE '%an ninh%' THEN
+                            CASE WHEN (EXTRACT(HOUR FROM cc.gio_vao) >= 17 AND (EXTRACT(HOUR FROM cc.gio_vao) > 17 OR EXTRACT(MINUTE FROM cc.gio_vao) > 0)) OR EXTRACT(HOUR FROM cc.gio_vao) < 5 THEN 1 ELSE 0 END
+                        ELSE
+                            CASE WHEN EXTRACT(HOUR FROM cc.gio_vao) * 60 + EXTRACT(MINUTE FROM cc.gio_vao) > 8 * 60 THEN 1 ELSE 0 END
+                    END
+                ), 0) AS late_count,
+                COALESCE(SUM(
+                    CASE 
+                        WHEN LOWER(pb.ten_phong_ban) LIKE '%an ninh%' THEN
+                            CASE WHEN (EXTRACT(HOUR FROM cc.gio_vao) >= 17 AND (EXTRACT(HOUR FROM cc.gio_vao) > 17 OR EXTRACT(MINUTE FROM cc.gio_vao) > 0)) OR EXTRACT(HOUR FROM cc.gio_vao) < 5 THEN 0 ELSE 1 END
+                        ELSE
+                            CASE WHEN EXTRACT(HOUR FROM cc.gio_vao) * 60 + EXTRACT(MINUTE FROM cc.gio_vao) <= 8 * 60 THEN 1 ELSE 0 END
+                    END
+                ), 0) AS on_time_count
             FROM PHONG_BAN pb
             LEFT JOIN NHAN_VIEN nv ON pb.id_phong_ban = nv.id_phong_ban
             LEFT JOIN CHAM_CONG cc ON nv.id_nhan_vien = cc.id_nhan_vien 
@@ -734,8 +775,35 @@ export const layThongKeDashboard = async (req, res) => {
         }
 
         const presentQuery = `SELECT COUNT(*) as present_count FROM CHAM_CONG WHERE ${dateCondition} AND gio_vao IS NOT NULL`;
-        const lateQuery = `SELECT COUNT(*) as late_count FROM CHAM_CONG WHERE ${dateCondition} AND (EXTRACT(HOUR FROM gio_vao) * 60 + EXTRACT(MINUTE FROM gio_vao) > 8 * 60)`;
-        const forgotQuery = `SELECT COUNT(*) as forgot_count FROM CHAM_CONG WHERE ${dateCondition} AND gio_ra IS NULL AND (EXTRACT(HOUR FROM CURRENT_TIMESTAMP) > 20)`;
+        const lateQuery = `
+            SELECT COUNT(*) as late_count 
+            FROM CHAM_CONG cc
+            LEFT JOIN NHAN_VIEN nv ON cc.id_nhan_vien = nv.id_nhan_vien
+            LEFT JOIN PHONG_BAN pb ON nv.id_phong_ban = pb.id_phong_ban
+            WHERE ${dateCondition.replace(/gio_vao/g, 'cc.gio_vao')} 
+              AND (
+                  (LOWER(pb.ten_phong_ban) LIKE '%an ninh%' AND (
+                      (EXTRACT(HOUR FROM cc.gio_vao) >= 17 AND (EXTRACT(HOUR FROM cc.gio_vao) > 17 OR EXTRACT(MINUTE FROM cc.gio_vao) > 0))
+                      OR EXTRACT(HOUR FROM cc.gio_vao) < 5
+                  ))
+                  OR 
+                  ((LOWER(pb.ten_phong_ban) NOT LIKE '%an ninh%' OR pb.ten_phong_ban IS NULL) AND 
+                      (EXTRACT(HOUR FROM cc.gio_vao) * 60 + EXTRACT(MINUTE FROM cc.gio_vao) > 8 * 60)
+                  )
+              )
+        `;
+        const forgotQuery = `
+            SELECT COUNT(*) as forgot_count 
+            FROM CHAM_CONG cc
+            LEFT JOIN NHAN_VIEN nv ON cc.id_nhan_vien = nv.id_nhan_vien
+            LEFT JOIN PHONG_BAN pb ON nv.id_phong_ban = pb.id_phong_ban
+            WHERE ${dateCondition.replace(/gio_vao/g, 'cc.gio_vao')} AND cc.gio_ra IS NULL
+              AND (
+                  (LOWER(pb.ten_phong_ban) LIKE '%an ninh%' AND EXTRACT(HOUR FROM CURRENT_TIMESTAMP) > 6 AND EXTRACT(HOUR FROM CURRENT_TIMESTAMP) < 17)
+                  OR 
+                  ((LOWER(pb.ten_phong_ban) NOT LIKE '%an ninh%' OR pb.ten_phong_ban IS NULL) AND EXTRACT(HOUR FROM CURRENT_TIMESTAMP) > 20)
+              )
+        `;
         const otQuery = `SELECT COUNT(*) as ot_count FROM DON_DANG_KY_OT WHERE ${otCondition} AND trang_thai = 'DA_DUYET'`;
         
         const [presentRes, lateRes, forgotRes, otRes] = await Promise.all([

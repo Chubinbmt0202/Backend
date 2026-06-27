@@ -1,8 +1,0 @@
-{
-  "sendPushNotification": "guiThongBaoPush",
-  "sendMulticastNotification": "guiThongBaoNhieuNguoi",
-  "generateId": "taoId",
-  "euclideanDistance": "khoangCachEuclid",
-  "calculateSimilarity": "tinhDoTuongDong",
-  "findBestMatch": "timKetQuaTotNhat"
-}
